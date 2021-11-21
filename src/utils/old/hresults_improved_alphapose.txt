@@ -1,0 +1,78 @@
+User = alphapose_01-30-21_Raj_4K+Depth
+
+Original SE = 123 / 1368 = 8.99%
+Fixed 0 sentences. SE = 123 / 1368 = 8.99%
+
+Original WE = 188 / 5429 = 3.46%
+Fixed -51 words. WE = 239 / 5429 = 4.4%
+
+num_in_above_that_turned_wrong:  53
+num_in_above_that_were_fixed:  2
+
+********************************
+
+User = alphapose_11-04-20_Kanksha_4KDepth
+
+Original SE = 152 / 1363 = 11.15%
+Fixed 0 sentences. SE = 152 / 1363 = 11.15%
+
+Original WE = 247 / 5406 = 4.57%
+Fixed -77 words. WE = 324 / 5406 = 5.99%
+
+num_in_above_that_turned_wrong:  77
+num_in_above_that_were_fixed:  0
+
+********************************
+
+User = alphapose_01-31-21_Dhruva_4K+Depth
+
+Original SE = 113 / 1368 = 8.26%
+Fixed 0 sentences. SE = 113 / 1368 = 8.26%
+
+Original WE = 167 / 5479 = 3.05%
+Fixed -39 words. WE = 206 / 5479 = 3.76%
+
+num_in_above_that_turned_wrong:  42
+num_in_above_that_were_fixed:  3
+
+********************************
+
+User = alphapose_01-30-21_Raj_4K+Depth
+
+Original SE = 119 / 1364 = 8.72%
+Fixed 2 sentences. SE = 117 / 1364 = 8.58%
+
+Original WE = 173 / 5415 = 3.19%
+Fixed -49 words. WE = 222 / 5415 = 4.1%
+
+num_in_above_that_turned_wrong:  54
+num_in_above_that_were_fixed:  5
+
+********************************
+
+User = alphapose_08-12-20_Kanksha_4KDepth
+
+Original SE = 140 / 1370 = 10.22%
+Fixed 0 sentences. SE = 140 / 1370 = 10.22%
+
+Original WE = 198 / 5420 = 3.65%
+Fixed -63 words. WE = 261 / 5420 = 4.82%
+
+num_in_above_that_turned_wrong:  64
+num_in_above_that_were_fixed:  1
+
+********************************
+
+**** AVG ****
+orig_avg_SE: 9.47
+new_avg_SE : 9.44
+orig_avg_WE: 3.58
+new_avg_WE : 4.61
+
+total_num_in_above_that_turned_wrong: 290
+total_num_in_above_that_were_fixed: 11
+
+total_in_above_already_correct from incorrect sentences: 369
+
+total_in_above_wrong from incorrect sentences: 75
+total_wrong_words from incorrect sentences: 973

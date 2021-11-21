@@ -1,0 +1,15 @@
+<<<<<<< HEAD
+$adjective1 = grey | orange | black | white | blue;
+$subject = snake | lion | monkey | alligator;
+$preposition = above | below | in;
+$adjective2 = grey | orange | black | white | blue;
+$object = wall | bed | flowers | chair | box | wagon;
+=======
+$adjective1 = grey | blue | orange | black | white;
+$subject = lion | monkey | snake | alligator;
+$preposition = below | in | above;
+$adjective2 = grey | blue | orange | black | white;
+$object = wall | wagon | bed | flowers | box | chair;
+>>>>>>> origin/master
+
+(SENT-START [$adjective1] $subject $preposition [$adjective2] $object SENT-END)
