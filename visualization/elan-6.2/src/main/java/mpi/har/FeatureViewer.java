@@ -1,6 +1,9 @@
 package mpi.har;
 
 import mpi.eudico.client.annotator.commands.global.CreateTimeSeriesViewerMA;
+import mpi.eudico.client.annotator.viewer.TimeSeriesViewer;
+import mpi.eudico.client.annotator.ElanFrame2;
+import mpi.eudico.client.annotator.commands.ELANCommandFactory;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -66,7 +69,14 @@ public class FeatureViewer {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (timeseriesData != null && e.getSource() == plotDataButton) {
-                    //createTimeSeriesViewer();
+                    // createTimeSeriesViewer();
+                    System.out.println(timeseriesData);
+                    ElanFrame2 frame = new ElanFrame2();
+                    // Add listener for frame or figure out how to update view?
+                    // Add viewer manager with empty dummy transcription
+                    // create timeseries viewer for viewer manager
+                    // use java awt transforms to help with plotting on timeseries viewer
+                    TimeSeriesViewer tsViewer = new TimeSeriesViewer();
                 } else if (e.getSource() == plotDataButton) {
                     // Tell user to add file
                 }
@@ -80,6 +90,7 @@ public class FeatureViewer {
 
 
         panel.add(fileButton);
+        panel.add(plotDataButton);
         panel.add(textArea);
         frame.setSize(new Dimension(600, 400));
         panel.setPreferredSize(new Dimension(600, 400));
