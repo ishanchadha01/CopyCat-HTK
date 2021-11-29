@@ -6,6 +6,7 @@ from src.test import *
 import os
 import pickle
 
+
 def crossValVerificationFold(train_data: list, test_data: list, args: object, fold: int):
     print(f"Current split = {str(fold)}. Current Test data Size = {len(test_data)}")
     ogDataFolder = "data"
@@ -98,7 +99,8 @@ def crossValVerificationFold(train_data: list, test_data: list, args: object, fo
     print(f'Current False Negative Rate: {false_negative/(positive + false_negative)}')
 
     return positive, negative, false_positive, false_negative
-    
+
+
 def crossValFold(train_data: list, test_data: list, args: object, fold: int):
     train_data = np.array(train_data)
     np.random.seed(args.random_state)
