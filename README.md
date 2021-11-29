@@ -89,7 +89,11 @@ Note that the important ones are indicated with [**IMP**]
     * Test on Train: `python3 driver.py --test_type test_on_train --train_iters <iterations> --users <user_list> --method verification`
     * Single Split: `python3 driver.py --test_type standard --train_iters <iterations> --users <user_list> --method verification`
 
-# Verification
+## Adaptation
+
+## Visualization
+
+## Verification
 
 * Simple Verfication: Refers to using HVITE for alignment and using a static threshold for accepting and rejecting phrases
 * Verifcation Zahoor:  Refers to the verification algorithm proposed by Zahoor. You can find more information here: https://dl.acm.org/doi/pdf/10.1145/2070481.2070532
