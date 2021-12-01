@@ -1,9 +1,13 @@
 #from pympi.Elan import Eaf, to_eaf
-from ...pympi.pympi import Eaf, to_eaf, TSConf, to_tsconf
+from ...pympi.pympi import Eaf, to_eaf, TSConf, to_tsconf, TSTrack
+from .get_data import read_ark_file
 import os
 import csv
 import shutil
 import glob
+
+import FFProbe
+import numpy as np
 
 
 def is_file_name(name: str) -> bool:
@@ -192,14 +196,34 @@ def mlf_to_elan(mlf_filepath: str, video_dirs: list, eaf_savedir: str) -> None:
             to_eaf(out_path, eaf_file)
 
 
-def make_eaf_with_tsconf():
-    # must have associated eaf, add secondary linked file to it, and then create tsconf
-    pass
+def make_tsconf(eaf_obj, eaf_filepath, tsconf_filepath, tracks_list):
+    # create tsconf from tracks list and link to eaf
+    eaf_obj.add_secondary_linked_file(tsconf_filepath)
+    to_eaf(eaf_filepath, eaf_obj)
+    new_tsconf = TSConf(tsconf_filepath)
+    for new_track in tracks_list:
+        new_tsconf.add(new_track.name, new_track)
+    to_tsconf(tsconf_filepath, new_tsconf)
 
 
-def plot_features_ts():
-    # Take ark and convert to TS TXT and call make_tsconf
-    pass
+def plot_features_ts(ark_filepath, text_filename, video_filepath, feature_nums=[], feature_names=[]):
+    # Take ark and convert to TS TXT and return track list
+    feats = read_ark_file(ark_filepath)
+    video_len = int(float(FFProbe(video_filepath).video[0].duration) * 1000)
+    frame_len = video_len / feats.size[0]
+    time_col = [frame_len * i for i in range(feats.size[0])]
+    tracks_list = []
+    data_cols = [time_col]
+    if len(feature_nums) > 0:
+        for i, feature_num in enumerate(feature_nums):
+            data_col = list(feats[:, feature_num])
+            data_cols.append(data_col)
+            tracks_list.append(TSTrack(feature_names, time_col=0, detect_range=True,\
+                data_col=i+1, range_start=min(data_col), range_end=max(data_col)))
+    with open(text_filename, 'w') as f:
+        writer = csv.writer(f, delimiter='\t')
+        writer.writerows(list(np.array(data_cols).T)) 
+    return tracks_list    
 
 
 def plot_models_ts():
