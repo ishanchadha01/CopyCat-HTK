@@ -192,7 +192,8 @@ def mlf_to_elan(mlf_filepath: str, video_dirs: list, eaf_savedir: str) -> None:
             to_eaf(out_path, eaf_file)
 
 
-def make_tsconf():
+def make_eaf_with_tsconf():
+    # must have associated eaf, add secondary linked file to it, and then create tsconf
     pass
 
 
