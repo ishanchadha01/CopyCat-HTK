@@ -1,6 +1,6 @@
 #from pympi.Elan import Eaf, to_eaf
 from pympi import Eaf, to_eaf, TSConf, to_tsconf, TSTrack
-from .get_data import read_ark_file
+from .get_data import read_ark_file, mlf_to_dict
 import os
 import csv
 import shutil
@@ -9,59 +9,11 @@ from collections import OrderedDict
 
 from ffprobe import FFProbe
 import numpy as np
+from scipy.stats import norm 
 
 
 def is_file_name(name: str) -> bool:
     return len(name)>0 and name.endswith("\"") and name[0]=="\""
-
-
-def mlf_to_dict(mlf_filepath: str):
-    '''Generates dictionary from mlf file
-
-    Parameters
-    ----------
-    eaf_filepath : str
-        File path at which mlf file is located.
-
-    Returns dictionary with this format:
-    {filename : 
-        {word : 
-            [
-                [state, start, end]
-                ...
-            ]
-        }
-        ...
-    ...
-    }
-    '''
-    out_dict = {}
-
-    # Iterate over lines of mlf file
-    with open(mlf_filepath, "rb") as mlf:
-        out_path = None
-        header = mlf.readline()
-        lines = mlf.readlines()
-        line_num = 0
-        for line in lines:
-            line = line.decode('utf-8').strip()
-
-            # If line is file name, add new entry in dictionary
-            if is_file_name(line):
-                fname = '.'.join(line.split('/')[-1].split('.')[:-1])
-                out_dict[fname] = OrderedDict()
-
-            # If line has state and boundary data
-            elif line != '.':
-                line_arr = line.split(" ")
-                if len(line_arr) >= 5:
-                    word = line_arr[4]
-                    out_dict[fname][word] = []
-                state = line_arr[2]
-                start = int(line_arr[0])/1000
-                end = int(line_arr[1])/1000
-                out_dict[fname][word].append([state, start, end])
-        return out_dict
 
 
 def make_elan(data: OrderedDict, has_states: bool, video_dirs: list, eaf_savedir: str) -> None:
@@ -122,6 +74,71 @@ def make_elan(data: OrderedDict, has_states: bool, video_dirs: list, eaf_savedir
     return eaf_files
 
 
+def make_model_dict(macros_filepath, feature_labels):
+    """Processes raw macros data extracted from HMMs and coverts the data into a dictionary macros_data:
+        [word][state_number][mixture_number][mean/variance/gconst/mixture_weight][if mean/var then feature label].
+
+    Parameters
+    ----------
+    feature_labels : list of str
+        List of features from the feature config file used when testing and training the HMM.
+
+    macros_filepath : str
+        File path to the corresponding newMacros result file that is generated from running HMM.
+
+    Returns
+    -------
+    macros_data : dictionary
+        The data extracted from the newMacros file in the following format:
+        [word][state_number][mixture_number][mean/variance/gconst/mixture_weight][if mean/variance then feature_label].
+
+    """
+    macros_data = {}
+    macro_lines = [ line.rstrip() for line in open(macros_filepath, "r") ]
+
+    i = 0
+    while i != len(macro_lines):
+        while i != len(macro_lines) and "~h" not in macro_lines[i]:
+            i += 1
+        if i == len(macro_lines): break
+        word = macro_lines[i].split("\"")[1]
+        macros_data[word] = {}
+        
+        while "<NUMSTATES>" not in macro_lines[i]:
+            i += 1
+        num_states = int(macro_lines[i].split(" ")[1])
+        for num_state in range(2, num_states):
+            while "<STATE>" not in macro_lines[i]:
+                i += 1
+            macros_data[word][num_state] = {}
+
+            while "<NUMMIXES>" not in macro_lines[i]:
+                i += 1
+            num_mixes = int(macro_lines[i].split(" ")[1])
+            for num_mix in range(1, num_mixes + 1):
+                macros_data[word][num_state][num_mix] = {}
+
+                i += 1
+                macros_data[word][num_state][num_mix]["mixture_weight"] = float(macro_lines[i].split(" ")[2])
+
+                i += 2
+                mean_list = macro_lines[i].split(" ")[1:]
+                mean_list = [ float(item) for item in mean_list ]
+                macros_data[word][num_state][num_mix]["mean"] = dict(zip(feature_labels, mean_list))
+
+                i += 2
+                variance_list = macro_lines[i].split(" ")[1:]
+                variance_list = [ float(item) for item in variance_list ]
+                macros_data[word][num_state][num_mix]["variance"] = dict(zip(feature_labels, variance_list))
+
+                i += 1
+                macros_data[word][num_state][num_mix]["gconst"] = float(macro_lines[i].split(" ")[1])
+
+        while "<ENDHMM>" not in macro_lines[i]:
+            i += 1
+    return macros_data
+
+
 def scale_annotations(annotation_data: dict, video_len: int):
     # Get multiplier for each file
     multiplier_dict = {fname: video_len / list(fdata.values())[-1][-1][-1] for fname, fdata in annotation_data.items()}
@@ -133,25 +150,55 @@ def scale_annotations(annotation_data: dict, video_len: int):
     return annotation_data
 
 
-def plot_features_ts(ark_filepath, text_filename, video_len, feature_nums=[], feature_names=[]):
+def plot_features_ts(feature_data, text_filename, video_len, feature_nums=[]):
     # Take ark and convert to TS TXT and return track list
-    feats = read_ark_file(ark_filepath)
-    frame_len = video_len / feats.shape[0]
-    time_col = [frame_len * i for i in range(feats.shape[0])]
-    tracks_list = []
+    frame_len = video_len / feature_data.shape[0]
+    time_col = [frame_len * i for i in range(feature_data.shape[0])]
     data_cols = [time_col]
-    if len(feature_nums) > 0:
-        for i, feature_num in enumerate(feature_nums):
-            data_col = list(feats[:, feature_num])
-            data_cols.append(data_col)
-            tracks_list.append(
-                TSTrack(feature_names[i], time_col=0, detect_range=True,\
-                data_col=i+1, range_start=int(min(data_col)-1), range_end=int(max(data_col)+1))
-            )
+    for feature_num in feature_nums:
+        data_col = list(feature_data[:, feature_num])
+        data_cols.append(data_col)
+
     with open(text_filename, 'w') as f:
         writer = csv.writer(f, delimiter='\t')
-        writer.writerows(list(np.array(data_cols).astype(int).T)) 
-    return tracks_list    
+        writer.writerows(list(np.array(data_cols).astype(int).T))  
+
+
+def plot_ll_ts(macros_data, feature_data, annotations, text_filename, \
+    video_filename, video_len, feature_nums=[]):
+    # plot mean/variance of specific feature
+    num_frames = feature_data.shape[0]
+    frame_len = video_len / num_frames
+    time_col = [frame_len * i for i in range(feature_data.shape[0])]
+    data_cols = [time_col]
+    word_state_times = [(word, state, start, end) for word, state_info in\
+        annotations[video_filename].items() for state, start, end in state_info]
+    for feature_num in feature_nums:
+        feat_over_time = list(feature_data[:, feature_num])
+        data_col = []
+        frame = 0
+        time_slot = 0
+        while frame < num_frames:
+            word,state,start,end = word_state_times[time_slot]
+            if start<=time_col[frame]<=end:
+                max_ll = float('-inf')
+                for mixture in macros_data[word][state].values():
+                    ll = norm.logpdf(feat_over_time[frame], mixture['mean'], mixture['variance'])
+                    max_ll = max(ll, max_ll)
+                data_col.append(max_ll)
+                frame += 1
+            else:
+                time_slot += 1
+        data_cols.append(data_col)
+
+    with open(text_filename, 'w') as f:
+        writer = csv.writer(f, delimiter='\t')
+        writer.writerows(list(np.array(data_cols).astype(int).T))
+
+
+def plot_kl_divergence(model1, model2, compare_states=[], state_names=[]):
+    # plot distance between gaussians
+    pass
 
 
 if __name__=='__main__':
@@ -161,6 +208,7 @@ if __name__=='__main__':
     eaf_fp = '/Users/ishan/Documents/Research/08-14-20_Thad_4K.alligator_in_wagon.0000000000.eaf'
     text_fp = '/Users/ishan/Documents/Research/features_ts.txt'
     annotations = mlf_to_dict('/Users/ishan/Documents/Research/reduced.mlf')
+    feature_data = read_ark_file(ark_fp)
     video_len = int(float(FFProbe(vid_fp).video[0].duration) * 1000)
     annotations = scale_annotations(annotations, video_len)
     eaf_obj = make_elan(annotations, has_states=True, video_dirs=[vid_fp], \

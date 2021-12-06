@@ -90,50 +90,69 @@ def mlf_to_dict(mlf_filepath: str) -> dict:
         return out_dict
 
 
-def model(model_path: str) -> dict:
-    '''Returns a dictionary of all means and variances for each feature, for each state, for each word
+def make_model_dict(macros_filepath, feature_labels):
+    """Processes raw macros data extracted from HMMs and coverts the data into a dictionary macros_data:
+        [word][state_number][mixture_number][mean/variance/gconst/mixture_weight][if mean/var then feature label].
 
     Parameters
     ----------
-    model_path : str
-        Path of newMacros file containing all model information for data.
-    '''
+    feature_labels : list of str
+        List of features from the feature config file used when testing and training the HMM.
 
-    # Creates models dict from newMacros file where each model contains data for a word
-    models = {}
-    current_label = None # current word
-    current_state = None # current state
-    current_vec   = None # either mean or variance vector
-    current_cmp   = [] # current component, which contains a mean array and variance array
-    current_model = {} # data corresponding to word
-    for line in open(model_path):
-        if line.startswith('~h'):
-            # Create new entry in models dict corresponding to new word            
-            if current_label is not None:
-                models[current_label] = current_model
-            current_model = {}
-            current_label = line[4:-2]            
-        elif line.startswith('<STATE>'):
-            state_num = line.strip().split(' ')[-1]
-            current_state = int(state_num)
-            current_model[current_state] = []
-        elif line.startswith('<MEAN>'):
-            current_vec = 'mean'
-        elif line.startswith('<VARIANCE>'):
-            current_vec = 'variance'
-        elif current_vec == 'mean':
-            mean = np.array([float(x) for x in line.strip().split(' ')])
-            current_cmp.append(mean)
-            current_vec = None
-        elif current_vec == 'variance':
-            variances = np.array([float(x) for x in line.strip().split(' ')])
-            current_cmp.append(variances)
-            current_model[current_state].append(current_cmp)
-            current_cmp = []
-            current_vec = None
-    if current_label is not None:
-        models[current_label] = current_model
-    return models
+    macros_filepath : str
+        File path to the corresponding newMacros result file that is generated from running HMM.
+
+    Returns
+    -------
+    macros_data : dictionary
+        The data extracted from the newMacros file in the following format:
+        [word][state_number][mixture_number][mean/variance/gconst/mixture_weight][if mean/variance then feature_label].
+
+    """
+    macros_data = {}
+    macro_lines = [ line.rstrip() for line in open(macros_filepath, "r") ]
+
+    i = 0
+    while i != len(macro_lines):
+        while i != len(macro_lines) and "~h" not in macro_lines[i]:
+            i += 1
+        if i == len(macro_lines): break
+        word = macro_lines[i].split("\"")[1]
+        macros_data[word] = {}
+        
+        while "<NUMSTATES>" not in macro_lines[i]:
+            i += 1
+        num_states = int(macro_lines[i].split(" ")[1])
+        for num_state in range(2, num_states):
+            while "<STATE>" not in macro_lines[i]:
+                i += 1
+            macros_data[word][num_state] = {}
+
+            while "<NUMMIXES>" not in macro_lines[i]:
+                i += 1
+            num_mixes = int(macro_lines[i].split(" ")[1])
+            for num_mix in range(1, num_mixes + 1):
+                macros_data[word][num_state][num_mix] = {}
+
+                i += 1
+                macros_data[word][num_state][num_mix]["mixture_weight"] = float(macro_lines[i].split(" ")[2])
+
+                i += 2
+                mean_list = macro_lines[i].split(" ")[1:]
+                mean_list = [ float(item) for item in mean_list ]
+                macros_data[word][num_state][num_mix]["mean"] = dict(zip(feature_labels, mean_list))
+
+                i += 2
+                variance_list = macro_lines[i].split(" ")[1:]
+                variance_list = [ float(item) for item in variance_list ]
+                macros_data[word][num_state][num_mix]["variance"] = dict(zip(feature_labels, variance_list))
+
+                i += 1
+                macros_data[word][num_state][num_mix]["gconst"] = float(macro_lines[i].split(" ")[1])
+
+        while "<ENDHMM>" not in macro_lines[i]:
+            i += 1
+    return macros_data
 
 
 def get_feature_labels(feature_fp: str) -> dict:
