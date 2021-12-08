@@ -1,7 +1,9 @@
 import os
 import re
-import numpy as np
 import json
+
+import numpy as np
+from scipy.stats import norm 
 
 
 def read_ark_file(ark_filepath):
@@ -88,6 +90,41 @@ def mlf_to_dict(mlf_filepath: str) -> dict:
                 end = int(line_arr[1])/1000
                 out_dict[fname][word].append([state, start, end])
         return out_dict
+
+
+def make_ll_dict(model_data, feature_data, phrase, annotations, feature_labels, video_len):
+    num_frames = feature_data.shape[0]
+    num_features = feature_data.shape[1]
+    frame_len = video_len / num_frames
+    time_col = [frame_len * i for i in range(feature_data.shape[0])]
+    ll_dict = {}
+    word_state_times = [(word, state, start, end) for word, state_info in\
+        annotations[phrase].items() for state, start, end in state_info]
+    for feature_num in num_features:
+        feat_over_time = list(feature_data[:, feature_num])
+        data_col = []
+        frame = 0
+        time_slot = 0
+        while frame < num_frames:
+            word,state,start,end = word_state_times[time_slot]
+            if start<=time_col[frame]<=end:
+                max_ll = float('-inf')
+                state = int(re.findall(r'\d+', state)[-1])
+                for mixture in model_data[word][state].values():
+                    mean = mixture['mean'][feature_labels[feature_num]]
+                    var = mixture['variance'][feature_labels[feature_num]]
+                    ll = norm.logpdf(feat_over_time[frame], mean, var)
+                    max_ll = max(ll, max_ll)
+                data_col.append(max_ll)
+                frame += 1
+            else:
+                time_slot += 1
+        ll_dict[feature_labels[feature_num]] = data_col
+    return ll_dict
+
+
+def rank_ll(confused_words_list, ll_dicts):
+    pass
 
 
 def make_model_dict(macros_filepath, feature_labels):

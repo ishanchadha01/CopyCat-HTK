@@ -1,10 +1,11 @@
 #from pympi.Elan import Eaf, to_eaf
-from pympi import Eaf, to_eaf, TSConf, to_tsconf, TSTrack
-from .get_data import read_ark_file, mlf_to_dict
+from pympi.Elan import Eaf, to_eaf
+from get_data import read_ark_file, mlf_to_dict, make_model_dict
 import os
 import csv
 import shutil
-import glob
+import json
+import re
 from collections import OrderedDict
 
 from ffprobe import FFProbe
@@ -16,7 +17,7 @@ def is_file_name(name: str) -> bool:
     return len(name)>0 and name.endswith("\"") and name[0]=="\""
 
 
-def make_elan(data: OrderedDict, has_states: bool, video_dirs: list, eaf_savedir: str) -> None:
+def make_elan(data: OrderedDict, has_states: bool, video_dirs: list, eaf_savedir: str, elan_txt='./elan.txt') -> None:
     """Generates eaf files from data dict
     Returns eaf object list
 
@@ -34,7 +35,6 @@ def make_elan(data: OrderedDict, has_states: bool, video_dirs: list, eaf_savedir
     eaf_savedir : str
         Directory under which eaf files are saved.
     """
-    print(video_dirs)
     video_names = [ vname.split('/')[-1] for vname in video_dirs ]
     eaf_files = []
     for fname_ext in video_names:
@@ -45,10 +45,9 @@ def make_elan(data: OrderedDict, has_states: bool, video_dirs: list, eaf_savedir
             out_path = os.path.join(eaf_savedir, fname + '.eaf')
 
             # Create base eaf file
-            shutil.copy("./Research/elan.txt", out_path)
+            shutil.copy(elan_txt, out_path)
 
             # Create eaf object and link video
-            print(video_fp)
             eaf_file = Eaf(out_path)
             eaf_file.add_linked_file(video_fp.replace(' ', '\ '), mimetype=f"video/{ext}")
 
@@ -73,8 +72,6 @@ def make_elan(data: OrderedDict, has_states: bool, video_dirs: list, eaf_savedir
             eaf_files.append(eaf_file)
     return eaf_files
 
-
-def make_model_dict(macros_filepath, feature_labels):
     """Processes raw macros data extracted from HMMs and coverts the data into a dictionary macros_data:
         [word][state_number][mixture_number][mean/variance/gconst/mixture_weight][if mean/var then feature label].
 
@@ -142,7 +139,6 @@ def make_model_dict(macros_filepath, feature_labels):
 def scale_annotations(annotation_data: dict, video_len: int):
     # Get multiplier for each file
     multiplier_dict = {fname: video_len / list(fdata.values())[-1][-1][-1] for fname, fdata in annotation_data.items()}
-    print(multiplier_dict)
     for filename, filedata in annotation_data.items():
         mult = multiplier_dict[filename]
         for word, state_list in filedata.items():
@@ -164,15 +160,14 @@ def plot_features_ts(feature_data, text_filename, video_len, feature_nums=[]):
         writer.writerows(list(np.array(data_cols).astype(int).T))  
 
 
-def plot_ll_ts(macros_data, feature_data, annotations, text_filename, \
-    video_filename, video_len, feature_nums=[]):
+def plot_ll_ts(model_data, feature_data, annotations, text_filename, phrase, video_len, feature_nums=[]):
     # plot mean/variance of specific feature
     num_frames = feature_data.shape[0]
     frame_len = video_len / num_frames
     time_col = [frame_len * i for i in range(feature_data.shape[0])]
     data_cols = [time_col]
     word_state_times = [(word, state, start, end) for word, state_info in\
-        annotations[video_filename].items() for state, start, end in state_info]
+        annotations[phrase].items() for state, start, end in state_info]
     for feature_num in feature_nums:
         feat_over_time = list(feature_data[:, feature_num])
         data_col = []
@@ -182,8 +177,11 @@ def plot_ll_ts(macros_data, feature_data, annotations, text_filename, \
             word,state,start,end = word_state_times[time_slot]
             if start<=time_col[frame]<=end:
                 max_ll = float('-inf')
-                for mixture in macros_data[word][state].values():
-                    ll = norm.logpdf(feat_over_time[frame], mixture['mean'], mixture['variance'])
+                state = int(re.findall(r'\d+', state)[-1])
+                for mixture in model_data[word][state].values():
+                    mean = mixture['mean'][feature_labels[feature_num]]
+                    var = mixture['variance'][feature_labels[feature_num]]
+                    ll = norm.logpdf(feat_over_time[frame], mean, var)
                     max_ll = max(ll, max_ll)
                 data_col.append(max_ll)
                 frame += 1
@@ -207,10 +205,16 @@ if __name__=='__main__':
     vid_fp = '/Users/ishan/Documents/Research/video_dir/08-14-20_Thad_4K.alligator_in_wagon.0000000000.m4v'
     eaf_fp = '/Users/ishan/Documents/Research/08-14-20_Thad_4K.alligator_in_wagon.0000000000.eaf'
     text_fp = '/Users/ishan/Documents/Research/features_ts.txt'
+    ll_fp = '/Users/ishan/Documents/Research/ll_ts.txt'
+    phrase = '08-14-20_Thad_4K.alligator_in_wagon.0000000000'
     annotations = mlf_to_dict('/Users/ishan/Documents/Research/reduced.mlf')
     feature_data = read_ark_file(ark_fp)
+    macros_fp = '/Users/ishan/Documents/Research/newMacros'
+    feature_labels = json.load(open('/Users/ishan/Documents/Research/features.json'))['selected_features']
+    model_data = make_model_dict(macros_fp, feature_labels)
     video_len = int(float(FFProbe(vid_fp).video[0].duration) * 1000)
     annotations = scale_annotations(annotations, video_len)
     eaf_obj = make_elan(annotations, has_states=True, video_dirs=[vid_fp], \
         eaf_savedir='/Users/ishan/Documents/Research')[0]
+    plot_ll_ts(model_data, feature_data, annotations, ll_fp, phrase, video_len, feature_nums=range(40))
     
