@@ -36,7 +36,7 @@ def test(start: int, end: int, method: str, insertion_penalty: int, beam_thresho
     if start < 0:
         start = end + start
 
-    if method == 'recognition':
+    if method == 'recognition' or method == 'adaptive_htk':
 
         # HVite_str = (f'HVite -A -H $macros -f -m -S lists/test.data -i $results '
         #              f'-p -10.0 -w wordNet.txt -s 25 dict wordList')

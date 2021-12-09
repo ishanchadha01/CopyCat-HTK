@@ -1,5 +1,5 @@
-from file_util import *
-import get_results
+from .file_util import *
+from .get_results import get_results
 from src.train import *
 from src.test import *
 

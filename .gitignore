@@ -1,0 +1,8 @@
+Mediapipe/data/*
+Mediapipe/hresults/*
+Mediapipe/lists/*
+Mediapipe/models/*
+Mediapipe/results/*
+Mediapipe/lists/*
+__pycache__/
+*.pyc

@@ -68,20 +68,16 @@ def create_ark_files(features_config: dict, users: list, phrase_len: list, verbo
         features_filepaths.extend(glob.glob(os.path.join(features_config['features_dir'], '**', '*.json'), recursive = True))
     else:
         features_filepaths = []
-        print(users)
         for user in users:
-            print(os.path.join(features_config['features_dir'], '*{}_*'.format(user), '**', '*.json'))
             features_filepaths.extend(glob.glob(os.path.join(features_config['features_dir'], '*{}_*'.format(user), '**', '*.data'), recursive = True))
             features_filepaths.extend(glob.glob(os.path.join(features_config['features_dir'], '*{}_*'.format(user), '**', '*.json'), recursive = True))
-
+            print(len(features_filepaths))
     features_filepaths = list(filter(lambda x: len(x.split('.')[1].split('_')) in phrase_len, features_filepaths))
     
-    # print(features_filepaths)
     if is_select_features:
         print("Generating ark/htk using select_features data model")
     else:
         print("Generating ark/htk using interpolate_features data model")
-
     for features_filepath in tqdm.tqdm(features_filepaths):
 
         if verbose:
@@ -97,16 +93,16 @@ def create_ark_files(features_config: dict, users: list, phrase_len: list, verbo
         
         if 'alphapose' in features_filename:
             features_df = feature_extraction_alphapose(features_filepath, features_config['selected_features'], scale = 10, drop_na = True)
-        '''
+        
         elif features_extension == 'json':
             features_df = feature_extraction_kinect(features_filepath, features_config['selected_features'], scale = 10, drop_na = True)
         elif is_select_features:
             features_df = select_features(features_filepath, features_config['selected_features'], center_on_nose = True, scale = 100, square = True, 
                                     drop_na = True, do_interpolate = True, use_optical_flow=use_optical_flow)
-
+        
         else:
             features_df = interpolate_feature_data(features_filepath, features_config['selected_features'], center_on_face = False, is_2d = True, scale = 10, drop_na = True)
-        '''
+        
         if features_df is not None:
             _create_ark_file(features_df, ark_filepath, title)
         

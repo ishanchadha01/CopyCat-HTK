@@ -20,6 +20,7 @@ def create_htk_files(htk_dir: str = os.path.join('data', 'htk'), ark_dir: str = 
     os.makedirs(htk_dir)
 
     ark_files = glob.glob(ark_dir)
+    print(len(ark_files))
 
     for ark_file in tqdm.tqdm(ark_files):
         

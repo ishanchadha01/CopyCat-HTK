@@ -1,6 +1,7 @@
 import os
 import re
 import json
+from tqdm import tqdm
 
 import numpy as np
 from scipy.stats import norm 
@@ -71,7 +72,8 @@ def mlf_to_dict(mlf_filepath: str) -> dict:
     with open(mlf_filepath, "rb") as mlf:
         _ = mlf.readline()
         lines = mlf.readlines()
-        for line in lines:
+        print('Finding boundaries')
+        for line in tqdm(lines):
             line = line.decode('utf-8').strip()
 
             # If line is file name, add new entry in dictionary
@@ -92,7 +94,18 @@ def mlf_to_dict(mlf_filepath: str) -> dict:
         return out_dict
 
 
+def scale_annotations(annotation_data: dict, video_len: int):
+    # Get multiplier for each file
+    multiplier_dict = {fname: video_len / list(fdata.values())[-1][-1][-1] for fname, fdata in annotation_data.items()}
+    for filename, filedata in annotation_data.items():
+        mult = multiplier_dict[filename]
+        for word, state_list in filedata.items():
+            annotation_data[filename][word] = [[state, start*mult, end*mult] for state, start, end in state_list]
+    return annotation_data
+
+
 def make_ll_dict(model_data, feature_data, phrase, annotations, feature_labels, video_len):
+    # returns dict with {feature: [max_ll for each frame]}
     num_frames = feature_data.shape[0]
     num_features = feature_data.shape[1]
     frame_len = video_len / num_frames
@@ -100,7 +113,7 @@ def make_ll_dict(model_data, feature_data, phrase, annotations, feature_labels, 
     ll_dict = {}
     word_state_times = [(word, state, start, end) for word, state_info in\
         annotations[phrase].items() for state, start, end in state_info]
-    for feature_num in num_features:
+    for feature_num in range(num_features):
         feat_over_time = list(feature_data[:, feature_num])
         data_col = []
         frame = 0
@@ -123,8 +136,67 @@ def make_ll_dict(model_data, feature_data, phrase, annotations, feature_labels, 
     return ll_dict
 
 
-def rank_ll(confused_words_list, ll_dicts):
-    pass
+def get_ll_word(word_ll, phrase, annotations, model_data, feature_data, feature_labels):
+    # gets max likelihood for word for each feature
+    # for ark, if frame corresponds to correct word then add it to data col
+    # take median of word for specific video
+    num_frames = feature_data.shape[0]
+    num_features = feature_data.shape[1]
+    video_len = max([word[-1][-1] for word in annotations[phrase].values()])
+    frame_len = video_len / num_frames
+    time_col = [frame_len * i for i in range(feature_data.shape[0])]
+    ll_list = []
+    word_state_times = [(word, state, start, end) for word, state_info in\
+        annotations[phrase].items() for state, start, end in state_info]
+    for feature_num in range(num_features):
+        feat_over_time = list(feature_data[:, feature_num])
+        data_col = []
+        frame = 0
+        time_slot = 0
+        while frame < num_frames:
+            word,state,start,end = word_state_times[time_slot]
+            if start<=time_col[frame]<=end:
+                if word==word_ll:
+                    max_ll = float('-inf')
+                    state = int(re.findall(r'\d+', state)[-1])
+                    for mixture in model_data[word][state].values():
+                        mean = mixture['mean'][feature_labels[feature_num]]
+                        var = mixture['variance'][feature_labels[feature_num]]
+                        ll = norm.logpdf(feat_over_time[frame], mean, var)
+                        max_ll = max(ll, max_ll)
+                    data_col.append(max_ll)
+                frame += 1
+            else:
+                time_slot += 1
+        ll_list.append(max(data_col))
+    return ll_list
+
+
+def rank_ll(word1, word2, annotations, model_data, feature_data, feature_labels, data_dir):
+    phrases = annotations.keys()
+    print('Finding word1 medians')
+    ll_medians_word1 = np. median(np.array([get_ll_word(word1, '.'.join(fname.split('/')[-1].split('.')[:-1]), annotations, model_data, feature_data_dict[fname], feature_labels) \
+        for fname in tqdm(data_dir) if f'_{word1}_' in fname and '.'.join(fname.split('/')[-1].split('.')[:-1]) in phrases]), axis=0)
+    print('Finding word2 medians')
+    ll_medians_word2 = np.median(np.array([get_ll_word(word2, '.'.join(fname.split('/')[-1].split('.')[:-1]), annotations, model_data, feature_data_dict[fname], feature_labels) \
+        for fname in tqdm(data_dir) if f'_{word2}_' in fname and '.'.join(fname.split('/')[-1].split('.')[:-1]) in phrases]), axis=0)
+
+    print('Highest Importance Word1:')
+    imp = sorted(enumerate(list(ll_medians_word1)), key=lambda x:x[1], reverse=True)
+    for idx, val in imp:
+        print(feature_labels[idx], val)
+
+    print('Highest Importance Word2:')
+    imp = sorted(enumerate(list(ll_medians_word2)), key=lambda x:x[1], reverse=True)
+    for idx, val in imp:
+        print(feature_labels[idx], val)
+
+    print('Largest Differences:')
+    imp = sorted(enumerate([abs(a-b) for a, b in zip(list(ll_medians_word1), list(ll_medians_word2))]), \
+        key=lambda x:x[1], reverse=True)
+    for idx, val in imp:
+        print(feature_labels[idx], val)
+
 
 
 def make_model_dict(macros_filepath, feature_labels):
@@ -204,3 +276,15 @@ def get_feature_labels(feature_fp: str) -> dict:
         features = json.load(fp)['selected_features']
         feature_label_dict = { num: feature for num, feature in enumerate(features) }
     return feature_label_dict
+
+
+if __name__=='__main__':
+    annotations = mlf_to_dict('/mnt/884b8515-1b2b-45fa-94b2-ec73e4a2e557/SBHMM-HTK/SequentialClassification/main/projects/Kinect/results/11/res_hmm220.mlf')
+    feature_labels = json.load(open('/mnt/884b8515-1b2b-45fa-94b2-ec73e4a2e557/SBHMM-HTK/SequentialClassification/main/projects/Kinect/configs/features.json'))['selected_features']
+    model_data = make_model_dict('/mnt/884b8515-1b2b-45fa-94b2-ec73e4a2e557/SBHMM-HTK/SequentialClassification/main/projects/Kinect/models/11/hmm220/newMacros', feature_labels)
+    data_dir = '/mnt/884b8515-1b2b-45fa-94b2-ec73e4a2e557/SBHMM-HTK/SequentialClassification/main/projects/Kinect/data/ark'
+    data_fp_list = [os.path.join(data_dir, fname) for fname in os.listdir(data_dir) \
+        if os.path.splitext(os.path.join(data_dir, fname))[-1] == '.ark' and (('_in_' in fname) or ('_and_' in fname))]
+    feature_data_dict = {fname: read_ark_file(fname) \
+        for fname in data_fp_list}
+    rank_ll('in', 'above', annotations, model_data, feature_data_dict, feature_labels, data_fp_list)

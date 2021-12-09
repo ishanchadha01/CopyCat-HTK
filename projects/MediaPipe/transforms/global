@@ -1,0 +1,5 @@
+~b "global"
+<MMFIDMASK> *
+<PARAMETERS> MIXBASE
+<NUMCLASSES> 1
+    <CLASS> 1 {*.state[2-29].mix}

@@ -72,7 +72,7 @@ def main():
     parser.add_argument('--random_state', type=int, default=42) #The answer to life, the universe and everything
 
     #Arguments for training
-    parser.add_argument('--train_iters', nargs='*', type=int, default=[20, 50, 80])
+    parser.add_argument('--train_iters', nargs='*', type=int, default=[2,3,4])
     parser.add_argument('--hmm_insertion_penalty', default=-10)
     parser.add_argument('--mean', type=float, default=0.0)
     parser.add_argument('--variance', type=float, default=0.00001)
@@ -80,7 +80,7 @@ def main():
 
     #Arguments for SBHMM
     parser.add_argument('--train_sbhmm', action='store_true')    
-    parser.add_argument('--sbhmm_iters', nargs='*', type=int, default=[20, 50, 80])
+    parser.add_argument('--sbhmm_iters', nargs='*', type=int, default=[2,3,4])
     parser.add_argument('--include_word_position', action='store_true')
     parser.add_argument('--include_word_level_states', action='store_true')
     parser.add_argument('--sbhmm_insertion_penalty', default=-10)
@@ -102,12 +102,17 @@ def main():
     parser.add_argument('--acceptance_threshold', default=-150)
     parser.add_argument('--verification_method', default='zahoor', 
                         choices=['zahoor', 'logistic_regression', 'neural_net'])
+
+    #Arguments for adaptation
+    parser.add_argument('--adapt_iters', nargs='*', type=int, default=[2,3,4])
+    parser.add_argument('--hmm_num', nargs='*', type=int, default=4)
+    parser.add_argument('--new_users', nargs='*', default=None)
     
     args = parser.parse_args()
     ########################################################################################
-
-    if args.users: args.users = [user.capitalize() for user in args.users]
-
+    
+    #if args.users: args.users = [user.capitalize() for user in args.users]
+    
     cross_val_methods = {'kfold': (KFold, True),
                          'leave_one_phrase_out': (LeaveOneGroupOut(), True),
                          'stratified': (StratifiedKFold, True),
@@ -126,8 +131,9 @@ def main():
     else:
         hresults_file = f'hresults/res_hmm{args.train_iters[-1]-1}.txt'
 
-    if args.prepare_data and not args.test_type == 'progressive_user_adaptive':
+    if args.prepare_data and not args.test_type == 'progressive_user_adaptive' and not args.test_type == 'adaptive_htk':
         # this will include users in verification
+        print(args.users)
         prepare_data(features_config, args.users)
 
     if args.test_type == 'none':
@@ -390,22 +396,45 @@ def main():
     elif args.test_type == 'progressive_user_adaptive':
         all_results, stats = pua(args, features_config, all_results)
 
-    elif args.test_type == 'adaptive-htk':
-        if not args.users:
-            htk_filepaths = glob.glob('data/htk/*htk')
-        else:
-            htk_filepaths = []
-            for user in args.users:
-                htk_filepaths.extend(glob.glob(os.path.join("data/htk", '*{}*.htk'.format(user))))
-        
-        phrases = [' '.join(filepath.split('.')[1].split('_'))
-            for filepath
-            in htk_filepaths]
-        train_data, test_data, _, _ = train_test_split(
-            htk_filepaths, phrases, test_size=args.test_size,
-            random_state=args.random_state)
+    elif args.test_type == 'adaptive_htk':
 
-        create_data_lists(train_data, test_data, args.phrase_len)
+        #prepare_data(features_config, args.users)
+        # if not args.users:
+        #     htk_filepaths = glob.glob('data/htk/*htk')
+        # else:
+        #     htk_filepaths = []
+        #     for user in args.users:
+        #         htk_filepaths.extend(glob.glob(os.path.join("data/htk", '*{}*.htk'.format(user))))
+        
+        # phrases = [' '.join(filepath.split('.')[1].split('_'))
+        #     for filepath
+        #     in htk_filepaths]
+        # train_data, test_data, _, _ = train_test_split(
+        #     htk_filepaths, phrases, test_size=args.test_size,
+        #     random_state=args.random_state)
+
+        # create_data_lists(train_data, test_data, args.phrase_len)
+        # train(args.train_iters, args.mean, args.variance, args.transition_prob)
+
+        # prepare_data(features_config, args.new_users)
+        # htk_filepaths = []
+        # for user in args.new_users:
+        #     htk_filepaths.extend(glob.glob(os.path.join("data/htk", '*{}*.htk'.format(user))))
+        
+        # phrases = [' '.join(filepath.split('.')[1].split('_'))
+        #     for filepath
+        #     in htk_filepaths]
+        # train_data, test_data, _, _ = train_test_split(
+        #     htk_filepaths, phrases, test_size=args.test_size,
+        #     random_state=args.random_state)
+
+        # create_data_lists(train_data, test_data, args.phrase_len)
+        adapt(args.adapt_iters, args.train_iters[-1])
+        test(args.start, args.end, args.method, args.hmm_insertion_penalty)
+        hresults_file = f'hresults/res_hmm5.txt'
+        all_results['fold_0'] = get_results(hresults_file)
+        all_results['average']['error'] = all_results['fold_0']['error']
+        all_results['average']['sentence_error'] = all_results['fold_0']['sentence_error']
 
     if args.method == "recognition":
         

@@ -29,7 +29,6 @@ def train(train_iters: list, mean: float, variance: float, transition_prob: floa
         Argument group defined in train_cli() and split from main
         parser.
     """
-
     if os.path.exists(f'models/{fold}'):
         shutil.rmtree(f'models/{fold}')
 

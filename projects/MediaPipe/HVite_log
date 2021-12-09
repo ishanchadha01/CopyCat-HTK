@@ -1,0 +1,1 @@
+HVite -A -I all_labels.mlf -K transforms/ -H models/hmm4/newMacros -j 1 -m -S lists/test.data -i results/res_hmm4.mlf -w wordNet.txt -s 25 
