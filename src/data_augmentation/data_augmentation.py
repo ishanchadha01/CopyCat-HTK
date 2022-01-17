@@ -22,8 +22,20 @@ Maybe there's a better way to do this with GitHub Issues, etc.
     - Instead of saving new .avi files, we could extract the OpenPose features directly from the augmented videos while augmenting
     - This way, we'd save new .json files and not new .avi files
     
-4) Implement a Data Augmentation Statistics class to track reprojection errors in Mediapipe, Kinect, and AlphaPose
+4) === GURU WORKING ON THIS === Implement a Data Augmentation Statistics class to track reprojection errors in Mediapipe, Kinect, and AlphaPose
     - Might be a good idea to get Guru on this if you need help
+    
+5) Speed up data augmentation computations
+    - Look into things like Numba, Cython and see if these can be used to speed up NumPy array computations
+    - Right now, the process that takes the most time (~5 seconds per frame) is the cv2.projectPoints function
+    - Is it worth implementing that ourselves and then using Numba/Cython to speed it up?
+    - Also, from some reading, Guru found out that Pypy can slow down NumPy computations
+
+6) Implement the extractMediapipeFeatures, extractKinectFeatures, and extractAlphaPoseFeatures functions (relates to #3)
+    - These rely on the preexisting functions from before, but they need to return a different data structure
+    - For data augmentation, I need a numpy array of the keypoints (size keypoints x 2). A list/tuple of NumPy arrays would work too depending on the OpenPose implementation used
+    - You could use the functions from #3 but then add a parameter that changes the output based on what I said
+    
 
 ---------------- NICE TO HAVES ----------------
 
@@ -64,7 +76,6 @@ Steps it does:
 
 # Imports
 import cv2
-from DataAugmentation.data_aug_test import mediapipe_features
 from pyk4a import PyK4APlayback
 import numpy as np
 import glob
@@ -75,7 +86,7 @@ from tf_bodypix.api import download_model, load_model, BodyPixModelPaths
 from tqdm import tqdm
 from data_augmentation_statistics import DataAugmentationStatistics
 
-# Change these imports to match those in the actual pipeline
+# Change these imports to match those in the actual pipeline (look at Things to Do #6)
 from mediapipe_features import extractMediapipeFeatures
 from kinect_features import extractKinectFeatures
 from alpha_pose_features import extractAlphaPoseFeatures
