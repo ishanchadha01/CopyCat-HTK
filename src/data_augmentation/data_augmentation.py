@@ -104,15 +104,24 @@ def countFrames(video) -> int:
     Returns:
         int -- number of frames in the video
     """
-    playbackImage = cv2.VideoCapture(video)
-    frameCount = 0
-    while playbackImage.isOpened():
-        ret, _ = playbackImage.read()
-        if ret == True:
-            frameCount += 1
+    try:
+        # If cv2 version greater than 3, then metadata is different
+        if int(cv2.__version__.split('.')[0]) > 3:
+            frameCount = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
         else:
-            break
-    playbackImage.release()
+            frameCount = int(video.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT))
+
+    # Count frames manually if this fails
+    except:
+        playbackImage = cv2.VideoCapture(video)
+        frameCount = 0
+        while playbackImage.isOpened():
+            ret, _ = playbackImage.read()
+            if ret == True:
+                frameCount += 1
+            else:
+                break
+        playbackImage.release()
     return frameCount
 
 
