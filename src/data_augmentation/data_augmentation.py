@@ -7,31 +7,24 @@ Maybe there's a better way to do this with GitHub Issues, etc.
 
 **************** THINGS TO DO ****************
 
-1) Add nested progress bars
-    - Guru (as of 1/16/2022) has a progress bar to monitor the progress of the data augmentation for all videos.
-    - However, it is also nice to have a progress bar to monitor the progress of augmenting 1 video at a time
-    - This requires have 1 main progress bar and 1 nested progress bar
-    - All functions/code relating to nesting progress bars will have the comment:
-      # For future use: Nested progress bars
+1) Change the default dataset folder and default output folder in __init__ method
 
-2) Change the default dataset folder and default output folder in __init__ method
-
-3) Extracting Kinect, Mediapipe, AlphaPose OpenPose features directly from the augmented videos
+2) Extracting Kinect, Mediapipe, AlphaPose OpenPose features directly from the augmented videos
     - Right now, the script saves new .avi files
     - However, for space, this may or may not be the best way to do this
     - Instead of saving new .avi files, we could extract the OpenPose features directly from the augmented videos while augmenting
     - This way, we'd save new .json files and not new .avi files
     
-4) === GURU WORKING ON THIS === Implement a Data Augmentation Statistics class to track reprojection errors in Mediapipe, Kinect, and AlphaPose
+3) === GURU WORKING ON THIS === Implement a Data Augmentation Statistics class to track reprojection errors in Mediapipe, Kinect, and AlphaPose
     - Might be a good idea to get Guru on this if you need help
     
-5) Speed up data augmentation computations
+4) Speed up data augmentation computations
     - Look into things like Numba, Cython and see if these can be used to speed up NumPy array computations
     - Right now, the process that takes the most time (~5 seconds per frame) is the cv2.projectPoints function
     - Is it worth implementing that ourselves and then using Numba/Cython to speed it up?
     - Also, from some reading, Guru found out that Pypy can slow down NumPy computations
 
-6) Implement the extractMediapipeFeatures, extractKinectFeatures, and extractAlphaPoseFeatures functions (relates to #3)
+5) Implement the extractMediapipeFeatures, extractKinectFeatures, and extractAlphaPoseFeatures functions (relates to #3)
     - These rely on the preexisting functions from before, but they need to return a different data structure
     - For data augmentation, I need a numpy array of the keypoints (size keypoints x 2). A list/tuple of NumPy arrays would work too depending on the OpenPose implementation used
     - You could use the functions from #3 but then add a parameter that changes the output based on what I said
@@ -83,7 +76,7 @@ import os
 from pytransform3d.rotations import active_matrix_from_angle
 import tensorflow as tf
 from tf_bodypix.api import download_model, load_model, BodyPixModelPaths
-from tqdm import tqdm
+from tqdm import tqdm # Ensure that version is 4.51.0 to allow for nested progress bars
 from data_augmentation_statistics import DataAugmentationStatistics
 
 # Change these imports to match those in the actual pipeline (look at Things to Do #6)
@@ -224,6 +217,11 @@ class DataAugmentation():
                 newVideos.append(self.augmentVideo(video, rotation))
                 self.pbar.update(1)
         
+        # After processing all the videos, we need to generate the statistics
+        if self.statistics is not None:
+            self.statistics.createStatistics()
+            self.statistics.saveStatistics()
+        
         return newVideos
         
     def getListVideos(self) -> list:
@@ -251,6 +249,7 @@ class DataAugmentation():
         """
         # Get the video name by getting the last str when splitting on '/'
         videoName = video.split('/')[-1]
+        user = videoName.split('_')[1]
         
         # Open the videos. Using OpenCV to get the RGB values and using PyK4A to get the depth maps.
         playbackDepth = PyK4APlayback(video)
@@ -272,8 +271,10 @@ class DataAugmentation():
         if not os.path.exists(currVideoPath):
             out = cv2.VideoWriter(currVideoPath, codec, fps, (frameWidth, frameHeight))
 
-            # ADD NESTED PBAR HERE using the total number of frames in the video. Code to get number of frames is below
-            #frameCount = self.countFrames(video)
+            
+            frameCount = self.countFrames(video)
+            pbarFrame = tqdm(total=frameCount)
+            pbarFrame.set_description(user)
             
             # Iterate over the video and get the projected image. Then write that image to the new video
             while (True):
@@ -298,6 +299,7 @@ class DataAugmentation():
                     self.statistics.addGroundTruthPoseCoordinates(image, capture.transformed_depth, rotation, intrinsicCameraMatrix, distortionCoefficients)
                     
                     out.write(cv2.cvtColor(newImage, cv2.COLOR_BGR2RGB))
+                    pbarFrame.update(1)
                     
                 except EOFError:
                     break

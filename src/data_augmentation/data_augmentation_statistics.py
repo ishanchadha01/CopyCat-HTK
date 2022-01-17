@@ -75,20 +75,20 @@ class DataAugmentationStatistics():
     
     def createStatistics(self) -> None:
         if self.kinectData is not None:
-            self.kinectDataCSVPath = self.createStatisticsForKinect(self.kinectData)
+            self.kinectDataFrame = self.createStatisticsForKinect(self.kinectData)
         if self.mediapipeData is not None:
-            self.mediapipeDataCSVPath = self.createStatisticsForMediapipe(self.mediapipeData)
+            self.mediapipeDataFrame = self.createStatisticsForMediapipe(self.mediapipeData)
         if self.alphaposeData is not None:
-            self.alphaposeDataCSVPath = self.createStatisticsForAlphaPose(self.alphaposeData)
+            self.alphaposeDataFrame = self.createStatisticsForAlphaPose(self.alphaposeData)
     
-    def createStatisticsForKinect(self, kinectData: dict) -> str:
-        return ""
+    def createStatisticsForKinect(self, kinectData: dict) -> pd.DataFrame:
+        return None
     
-    def createStatisticsForMediapipe(self, mediapipeData: dict) -> str:
-        return ""
+    def createStatisticsForMediapipe(self, mediapipeData: dict) -> pd.DataFrame:
+        return None
     
-    def createStatisticsForAlphaPose(self, alphaposeData: dict) -> str:
-        return ""
+    def createStatisticsForAlphaPose(self, alphaposeData: dict) -> pd.DataFrametr:
+        return None
     
     def saveStatistics(self):
         # Path should be csvStatiscs/kinect, etc and make it different for each pose
