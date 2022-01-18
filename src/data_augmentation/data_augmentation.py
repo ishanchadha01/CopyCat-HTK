@@ -32,18 +32,15 @@ Maybe there's a better way to do this with GitHub Issues, etc.
 
 ---------------- NICE TO HAVES ----------------
 
-1) Add translations along with rotations into the pipeline
-    - Might be a good idea to get Guru on this if you need help
-
-2) Create an Exception for if the image is clipped enough
+1) Create an Exception for if the image is clipped enough
     - If the rotations and translations cause the OpenPose points to not be present on the image, we should raise an exception for that
     - This way, bad rotations and translations don't make it into the training data
     - Thad said that as of 1/16/2022, it isn't a priority
 
-3) Calculate the maximum rotation/translations possible that doesn't allow videos to be clipped (relates to 2)
+2) Calculate the maximum rotation/translations possible that doesn't allow videos to be clipped (relates to 2)
     - Guru was working on some math for this until Thad said that as of 1/16/2022, it isn't a priority
     
-4) Look into PyK4A capture's color parameter
+3) Look into PyK4A capture's color parameter
     - When augmenting a video, OpenCV is used to look at the video and extract the color image and PyK4A is used to look at the depth image
     - Is it worth it to just use PyK4A to get both the depth map and color image? What would be the performance impacts?
     - Ask Guru for specifics
@@ -56,6 +53,7 @@ Basic Explanation of Data Augmentation Class
 
 Class for Data Augmentation
 - Accepts a list of rotations
+- TODO: Accept a list of translations and simultaneous rotations and translations
 
 Returns:
 - A list of all the paths of all the data augmented videos with the list of rotations
@@ -119,12 +117,17 @@ def countFrames(video) -> int:
 
 
 class DataAugmentation():
-    def __init__(self, rotations, datasetFolder='./CopyCatDatasetWIP', outputPath='.', medianBlurKernelSize=5, gaussianBlurKernelSize=55, useBodyPixModel=True, trackStatistics=True, createMediapipeJSON=True, createKinectJSON=True, createAlphaPoseJSON=True, csvStatisticsSavePath='.') -> None:
+    def __init__(self, rotations, translations, rotationsAndTranslations, datasetFolder='./CopyCatDatasetWIP', outputPath='.', medianBlurKernelSize=5, gaussianBlurKernelSize=55, useBodyPixModel=True, trackStatistics=True, createMediapipeJSON=True, createKinectJSON=True, createAlphaPoseJSON=True, csvStatisticsSavePath='.') -> None:
         """__init__ creates the Data Augmentation Object
 
         Arguments:
             rotations {list of tuples} -- a list of x, y rotations to apply to the videos
-
+                Example Usage: [(-10, -10), (10, 10)]
+            translations {list of tuples} -- a list of x, y, z translations to apply to the videos
+                Example Usage: [(0, 0, 0), (1, 1, 1)]
+            rotationsAndTranslations {list of list of tuples} -- a list of x, y, z rotations and x, y, z translations to apply to the videos simultaneously
+                Example Usage: [[(-10, -10), (0, 0, 0)], [(10, 10), (1, 1, 1)]]
+                
         Keyword Arguments:
             datasetFolder {str} -- the path where the original videos are located (default: {'./CopyCatDatasetWIP'})
             outputPath {str} -- the path where the augmented videos will be saved (default: {'.'})
@@ -143,7 +146,7 @@ class DataAugmentation():
             ValueError: If the X rotation is greater than 90 or less than 0
             ValueError: If the Y rotation is greater than 90 or less than 0
         """
-        #DataAugmentationStatistics
+        
         # If the dataset folder or the output folder does not exist, raise an error
         if not os.path.exists(datasetFolder):
             raise NameError(f'Dataset folder {datasetFolder} does not exist')
@@ -164,7 +167,17 @@ class DataAugmentation():
             elif y < 0 or y >= 90:
                 raise ValueError('Y Rotation must be between 0 and less than 90')
         
+        for rotationTranslation in rotationsAndTranslations:
+            x, y = rotationTranslation[0]
+            if x < 0 or x >= 90:
+                raise ValueError('X Rotation must be between 0 and less than 90')
+            elif y < 0 or y >= 90:
+                raise ValueError('Y Rotation must be between 0 and less than 90')
+        
         self.rotations = rotations
+        self.translations = translations
+        self.rotationsAndTranslations = rotationsAndTranslations
+        
         self.datasetFolder = datasetFolder
         self.medianBlurKernelSize = medianBlurKernelSize
         self.gaussianBlurKernelSize = gaussianBlurKernelSize
@@ -174,6 +187,7 @@ class DataAugmentation():
         self.createKinectJSON = createKinectJSON
         self.createAlphaPoseJSON = createAlphaPoseJSON
         
+        # If we want to track reprojection error statistics, then make the data augmentation statistics object
         if trackStatistics:
             self.statistics = DataAugmentationStatistics(createMediapipeJSON, createKinectJSON, createAlphaPoseJSON, csvStatisticsSavePath)
         else:
@@ -214,8 +228,13 @@ class DataAugmentation():
         newVideos = []
         for video in listOfVideos:
             for rotation in self.rotations:
-                newVideos.append(self.augmentVideo(video, rotation))
-                self.pbar.update(1)
+                newVideos.append(self.augmentVideo(video, rotation=rotation))
+            for translation in self.translations:
+                newVideos.append(self.augmentVideo(video, translation=translation))
+            for rotationTranslation in self.rotationsAndTranslations:
+                newVideos.append(self.augmentVideo(video, rotationTranslation=rotationTranslation))
+
+            self.pbar.update(1)
         
         # After processing all the videos, we need to generate the statistics
         if self.statistics is not None:
@@ -237,12 +256,14 @@ class DataAugmentation():
                 result.append(video)
         return result
 
-    def augmentVideo(self, video, rotation) -> str:
+    def augmentVideo(self, video, rotation=None, translation=None, rotationTranslation=None) -> str:
         """augmentVideo augments a video with a given rotation
 
         Arguments:
             video {str} -- the path of the video to augment
             rotation {list} -- list of tuple containing X and Y rotation to apply to the video
+            translation {list} -- list of tuple containing X, Y, Z translation to apply to the video
+            rotationTranslation {list} -- list of list of tuples containing X, Y rotation and X, Y, Z translation to apply to the video
 
         Returns:
             str -- destination path of the augmented video
@@ -263,15 +284,21 @@ class DataAugmentation():
         # Define new video
         codec = cv2.VideoWriter_fourcc('M','J','P','G')
         fps = playbackImage.get(cv2.CAP_PROP_FPS)
-        currVideoPath = f'./{self.outputPath}/rotated_x_{rotation[0]}_y_{rotation[1]}_{videoName}.avi'
+        
+        if rotationTranslation is not None:
+            rotation = rotationTranslation[0]
+            translation = rotationTranslation[1]
+        
+        rotationName = "rotation(0,0)" if rotation is None else f"rotation({rotation[0]},{rotation[1]})"  
+        translationName = "translation(0,0,0)" if translation is None else f"translation({translation[0]},{translation[1]},{translation[2]})"
+        
+        currVideoPath = f'./{self.outputPath}/{rotationName}_{translationName}_{videoName}.avi'
         frameWidth = int(playbackImage.get(3))
         frameHeight = int(playbackImage.get(4))
         
         # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
         if not os.path.exists(currVideoPath):
             out = cv2.VideoWriter(currVideoPath, codec, fps, (frameWidth, frameHeight))
-
-            
             frameCount = self.countFrames(video)
             pbarFrame = tqdm(total=frameCount)
             pbarFrame.set_description(user)
@@ -283,7 +310,7 @@ class DataAugmentation():
                     capture = playbackDepth.get_next_capture()
                     _, image = playbackImage.read()
                     
-                    newImage = self.augmentFrame(image, capture, rotation, intrinsicCameraMatrix, distortionCoefficients)
+                    newImage = self.augmentFrame(image, capture, rotation, translation, rotationTranslation, intrinsicCameraMatrix, distortionCoefficients)
                     
                     # EXTRACT OPENPOSE POINTS HERE AND SAVE TO JSON BASED ON PARAMS FROM INIT METHOD (look at Things to do 3)
                     if self.createKinectJSON:
@@ -311,7 +338,7 @@ class DataAugmentation():
             
         return currVideoPath
     
-    def augmentFrame(self, image, capture, rotation, cameraIntrinsicMatrix, distortionCoeffients) -> np.ndarray:
+    def augmentFrame(self, image, capture, rotation, translation, rotationTranslation, cameraIntrinsicMatrix, distortionCoeffients) -> np.ndarray:
         """augmentFrame takes a current frame and applies the given rotation to it
 
         Arguments:
@@ -319,6 +346,28 @@ class DataAugmentation():
             capture {pyk4a.capture} -- A capture object containing the depth data for the current frame
             playbackDepth {pyk4a.playback} -- A playback object containing the camera calibration parameters for the current frame
             rotation {list} -- list of tuple containing X and Y rotation to apply to the video
+            cameraIntrinsicMatrix {np.ndarray} -- 3x3 matrix explaining focal length, principal point, and aspect ratio of the camera
+            distortionCoeffients {[type]} -- 1x8 matrix explaining the distortion of the camera
+
+        Returns:
+            np.ndarray -- RGB projected image of the current frame given the rotation
+        """
+        if rotation is not None:
+            return self.augmentFrameRotation(image, capture, rotation, cameraIntrinsicMatrix, distortionCoeffients)
+        if translation is not None:
+            return self.augmentFrameTranslation(image, capture, translation, cameraIntrinsicMatrix, distortionCoeffients)
+        if rotationTranslation is not None:
+            return self.augmentFrameRotationTranslation(image, capture, rotationTranslation, cameraIntrinsicMatrix, distortionCoeffients)
+        return None
+    
+    def augmentFrameRotation(self, image, capture, rotation, cameraIntrinsicMatrix, distortionCoeffients) -> np.ndarray:
+        """augmentFrameRotation rotates the current frame by the given rotation
+        Arguments:
+            image {np.ndarray} -- RGB image of the current frame
+            capture {pyk4a.capture} -- A capture object containing the depth data for the current frame
+            rotation {list} -- list of tuple containing X and Y rotation to apply to the video
+            cameraIntrinsicMatrix {np.ndarray} -- 3x3 matrix explaining focal length, principal point, and aspect ratio of the camera
+            distortionCoeffients {[type]} -- 1x8 matrix explaining the distortion of the camera
 
         Returns:
             np.ndarray -- RGB projected image of the current frame given the rotation
@@ -329,12 +378,7 @@ class DataAugmentation():
         
         # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
         # The size of this matrix will be (image height x image width, 3) where the 3 is for the RGB values
-        pixels = np.indices(depthData.shape)
-        rows = pixels[0].flatten().reshape(-1,1)
-        cols = pixels[1].flatten().reshape(-1,1)
-        pixels = np.hstack((rows, cols))
-        flattenDepth = depthData.flatten().reshape(-1, 1)
-        pixels = np.hstack((pixels, flattenDepth))
+        pixels = self.createPixelCoordinateMatrix(depthData)
 
         # Define angle of rotation around x and y (not z)
         # For some reason, the x rotation is actually the y-rotation based off experiments. Guru believes it has to do with how the u and v coordinates are defined
@@ -344,15 +388,11 @@ class DataAugmentation():
         # Take the rotation matrix and use Rodrigues's formula. Needed for cv2.projectPoints
         rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
         
-        # The translation is currently a 0 vector. Look at "Nice to Haves" number 5 at the top of this class
+        # The translation is a 0 vector for rotations
         translation = np.array([0, 0, 0], dtype=np.float64)
         
         # Calculate the world coordinates of the pixels
-        threeDPoints = pixels
-        depthData = np.copy(threeDPoints[:, -1]).reshape(-1, 1)
-        threeDPoints[:, -1] = 1
-        worldGrid = np.linalg.inv(cameraIntrinsicMatrix) @ threeDPoints.transpose()
-        worldGrid = worldGrid.T * depthData
+        worldGrid = self.calculateWorldCoordinates(pixels, cameraIntrinsicMatrix)
 
         # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
         projectedImage, _ = cv2.projectPoints(worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoeffients)
@@ -363,6 +403,99 @@ class DataAugmentation():
         newImage = self.createNewImage(projectedImage, originalPixels, image)
         
         return newImage
+    
+    def augmentFrameTranslation(self, image, capture, translation, cameraIntrinsicMatrix, distortionCoeffients):
+        """augmentFrameTranslation translates a given frame by the given translation
+
+        Arguments:
+            image {np.ndarray} -- RGB image of the current frame
+            capture {pyk4a.capture} -- A capture object containing the depth data for the current frame
+            translation {list} -- X,Y,Z translation to apply to the video
+            cameraIntrinsicMatrix {np.ndarray} -- 3x3 matrix explaining focal length, principal point, and aspect ratio of the camera
+            distortionCoeffients {[type]} -- 1x8 matrix explaining the distortion of the camera
+
+        Returns:
+            np.ndarray -- RGB projected image of the current frame given the translation
+        """
+        # Clean the depth map and divide by 1000 to convert millimeters to meters
+        depth = self.cleanDepthMap(capture.transformed_depth, image)
+        depthData = depth / 1000
+        
+        # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
+        # The size of this matrix will be (image height x image width, 3) where the 3 is for the RGB values
+        pixels = self.createPixelCoordinateMatrix(depthData)
+
+        # For translations only, the rotation matrix should be an identity matrix
+        rotation_x = active_matrix_from_angle(0, np.deg2rad(0))
+        rotation_y = active_matrix_from_angle(1, np.deg2rad(0))
+        
+        # Take the rotation matrix and use Rodrigues's formula. Needed for cv2.projectPoints
+        rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
+        
+        # Convert translation to a np.array
+        translation = np.array(translation, dtype=np.float64)
+        
+        # Calculate the world coordinates of the pixels
+        worldGrid = self.calculateWorldCoordinates(pixels, cameraIntrinsicMatrix)
+
+        # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
+        projectedImage, _ = cv2.projectPoints(worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoeffients)
+
+        # Create the new RGB image
+        projectedImage = projectedImage[:, 0, :]
+        originalPixels = pixels[:, :-1]
+        newImage = self.createNewImage(projectedImage, originalPixels, image)
+        
+        return newImage   
+    
+    def augmentFrameRotationTranslation(self, image, capture, rotationTranslation, cameraIntrinsicMatrix, distortionCoeffients):
+        """augmentFrameRotationTranslation rotates and translates the frame given the rotation and translation
+
+        Arguments:
+            image {np.ndarray} -- RGB image of the current frame
+            capture {pyk4a.capture} -- A capture object containing the depth data for the current frame
+            rotationTranslation {list of tuples} -- A list containing both the rotation and translation to apply to the video
+            cameraIntrinsicMatrix {np.ndarray} -- 3x3 matrix explaining focal length, principal point, and aspect ratio of the camera
+            distortionCoeffients {[type]} -- 1x8 matrix explaining the distortion of the camera
+
+        Returns:
+            np.ndarray -- RGB projected image of the current frame given the translation
+        """
+        # Extract the rotation and translation from the rotationTranslation tuple
+        rotation = rotationTranslation[0]
+        translation = rotationTranslation[1]
+        
+        # Clean the depth map and divide by 1000 to convert millimeters to meters
+        depth = self.cleanDepthMap(capture.transformed_depth, image)
+        depthData = depth / 1000
+        
+        # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
+        # The size of this matrix will be (image height x image width, 3) where the 3 is for the RGB values
+        pixels = self.createPixelCoordinateMatrix(depthData)
+
+        # Define angle of rotation around x and y (not z)
+        # For some reason, the x rotation is actually the y-rotation based off experiments. Guru believes it has to do with how the u and v coordinates are defined
+        rotation_x = active_matrix_from_angle(0, np.deg2rad(rotation[1]))
+        rotation_y = active_matrix_from_angle(1, np.deg2rad(rotation[0]))
+        
+        # Take the rotation matrix and use Rodrigues's formula. Needed for cv2.projectPoints
+        rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
+        
+        # Convert translation to a np.array
+        translation = np.array(translation, dtype=np.float64)
+        
+        # Calculate the world coordinates of the pixels
+        worldGrid = self.calculateWorldCoordinates(pixels, cameraIntrinsicMatrix)
+
+        # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
+        projectedImage, _ = cv2.projectPoints(worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoeffients)
+
+        # Create the new RGB image
+        projectedImage = projectedImage[:, 0, :]
+        originalPixels = pixels[:, :-1]
+        newImage = self.createNewImage(projectedImage, originalPixels, image)
+        
+        return newImage   
     
     def cleanDepthMap(self, depthMap, image) -> np.ndarray:
         """cleanDepthMap processes the depth map to remove the 0 depth pixels and replace them
@@ -431,7 +564,23 @@ class DataAugmentation():
         
         return newImage
     
-    
+    def createPixelCoordinateMatrix(self, depthData) -> np.ndarray:
+        pixels = np.indices(depthData.shape)
+        rows = pixels[0].flatten().reshape(-1,1)
+        cols = pixels[1].flatten().reshape(-1,1)
+        pixels = np.hstack((rows, cols))
+        flattenDepth = depthData.flatten().reshape(-1, 1)
+        pixels = np.hstack((pixels, flattenDepth))
+        
+        return pixels
+
+    def calculateWorldCoordinates(self, threeDPoints, cameraIntrinsicMatrix):
+        depthData = np.copy(threeDPoints[:, -1]).reshape(-1, 1)
+        threeDPoints[:, -1] = 1
+        worldGrid = np.linalg.inv(cameraIntrinsicMatrix) @ threeDPoints.transpose()
+        worldGrid = worldGrid.T * depthData
+        
+        return worldGrid
     
     
     
