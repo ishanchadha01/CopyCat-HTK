@@ -52,11 +52,10 @@ Basic Explanation of Data Augmentation Class
 --------------------------------------------
 
 Class for Data Augmentation
-- Accepts a list of rotations
-- TODO: Accept a list of translations and simultaneous rotations and translations
+- Accepts a list of rotations, translations, and a combination of both
 
 Returns:
-- A list of all the paths of all the data augmented videos with the list of rotations
+- A list of all the paths of all the data augmented videos with the list of rotations, translations, and combinations
 
 Steps it does:
 1) Get the list of all the videos
