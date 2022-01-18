@@ -1,6 +1,6 @@
 
 '''
-As of 1/16/2022...
+As of 1/17/2022...
 
 If you complete a task, don't remove it, just put your name beside it!
 Maybe there's a better way to do this with GitHub Issues, etc.
@@ -59,8 +59,8 @@ Returns:
 
 Steps it does:
 1) Get the list of all the videos
-2) For each video, apply all the rotations
-3) Save a new video for each rotation
+2) For each video, apply all the rotations, translations, and combinations
+3) Save a new video for each rotation, translation, and combination
 4) Add that to a list of the paths of data augmented videos
 '''
 
