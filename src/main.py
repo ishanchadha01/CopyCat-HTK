@@ -42,7 +42,7 @@ from src.utils.file_util import *
 from src.utils.cross_val_util import *
 from joblib import Parallel, delayed
 from statistics import mean
-
+from src.data_augmentation import DataAugmentation
 
 def main():
     
@@ -107,6 +107,16 @@ def main():
     parser.add_argument('--adapt_iters', nargs='*', type=int, default=[2,3,4])
     parser.add_argument('--hmm_num', nargs='*', type=int, default=4)
     parser.add_argument('--new_users', nargs='*', default=None)
+    
+    #Arguments for data augmentation
+    '''
+    1) Tell if data aug should be done
+    2) Ask for rotationsX, Y
+    3) Ask for dataset folder
+    4) Ask for bodypix model
+    6) autoTranslate=True
+    7) pointForAutoTranslate=(3840 // 2, 2160 //2)
+    '''
     
     args = parser.parse_args()
     ########################################################################################
