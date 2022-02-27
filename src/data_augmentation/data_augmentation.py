@@ -1,8 +1,9 @@
 # Imports
 import cv2
-from pyk4a import PyK4APlayback
 import numpy as np
 import os
+
+from pyk4a import PyK4APlayback
 from pytransform3d.rotations import active_matrix_from_angle
 from itertools import product
 from tqdm import tqdm # Ensure that version is 4.51.0 to allow for nested progress bars
@@ -43,10 +44,10 @@ class DataAugmentation():
                 
         # If the x or y angle is negative or greater than 90, raise an error
         for x, y in zip(rotationsX, rotationsY):
-            if x < 0 or x >= 90:
-                raise ValueError('X Rotation must be between 0 and less than 90')
-            elif y < 0 or y >= 90:
-                raise ValueError('Y Rotation must be between 0 and less than 90')
+            if abs(x) >= 90:
+                raise ValueError('X Rotation must be less than 90')
+            elif abs(y) >= 90:
+                raise ValueError('Y Rotation must be less than 90')
             
         if autoTranslate and type(pointForAutoTranslate) != 'tuple' and len(pointForAutoTranslate) != 2:
             raise TypeError('Point for auto translate must be a tuple of length 2')
@@ -54,7 +55,7 @@ class DataAugmentation():
         if pointForAutoTranslate[0] > 3840 or pointForAutoTranslate[1] > 2160 or pointForAutoTranslate[0] < 0 or pointForAutoTranslate[1] < 0:
             raise ValueError('Point for auto translate must be within the bounds of the image')
             
-        self.rotations = product(rotationsX, rotationsY)
+        self.rotations = list(product(rotationsX, rotationsY)) #[combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.datasetFolder = datasetFolder
         self.medianBlurKernelSize = medianBlurKernelSize
         self.gaussianBlurKernelSize = gaussianBlurKernelSize
@@ -93,15 +94,17 @@ class DataAugmentation():
         """
         # Get the list of all the videos within the dataset folder
         listOfVideos = getListVideos(self.datasetFolder)
-        self.pbar = tqdm(total=len(listOfVideos))
-        
+        self.pbarAllVideos = tqdm(total=len(listOfVideos))
+        self.pbarAllVideos.set_description("Total Videos Done")
+        self.pbarAllVideosRotations = tqdm(total=len(listOfVideos) * len(self.rotations))
+        self.pbarAllVideosRotations.set_description("Total Videos Done For 1 Combination")
         # Start applying data augmentation to each video while appending the augmented video path to a new list
         newVideos = []
         for video in listOfVideos:
             for rotation in self.rotations:
                 newVideos.append(self.augmentVideo(video, rotation=rotation))
-                
-            self.pbar.update(1)
+                self.pbarAllVideosRotations.update(1)
+            self.pbarAllVideos.update(1)
                
         return newVideos
     
@@ -143,7 +146,7 @@ class DataAugmentation():
             out = cv2.VideoWriter(currVideoPath, codec, fps, (frameWidth, frameHeight))
             frameCount = countFrames(video)
             pbarFrame = tqdm(total=frameCount)
-            pbarFrame.set_description(user)
+            pbarFrame.set_description(f"{user}-{rotationName}")
             
             # Iterate over the video and get the projected image. Then write that image to the new video
             while (True):
@@ -153,10 +156,8 @@ class DataAugmentation():
                     _, image = playbackImage.read()
                     
                     newImage = self.augmentFrame(image, capture, rotation, intrinsicCameraMatrix, distortionCoefficients)
-                    
-                    # EXTRACT OPENPOSE POINTS HERE AND SAVE TO JSON BASED ON PARAMS FROM INIT METHOD (look at Things to do 2)
-                    
-                    out.write(cv2.cvtColor(newImage, cv2.COLOR_BGR2RGB))
+
+                    out.write(newImage)
                     pbarFrame.update(1)
                     
                 except EOFError:
@@ -205,11 +206,11 @@ class DataAugmentation():
         worldGrid = calculateWorldCoordinates(pixels, cameraIntrinsicMatrix)
 
         # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
-        projectedImage, _ = cv2.projectPoints(worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoeffients)[:, 0, :]
-
+        projectedImage, _ = cv2.projectPoints(worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoeffients)
+        projectedImage = projectedImage[:, 0, :]
         # If autoTranslate is true, then we should apply it to the image
         if self.autoTranslate:
-            Tx, Ty = solveForTxTy(self.pointForAutoTranslate, rotation[1], rotation[0], depthData)
+            Tx, Ty = solveForTxTy(self.pointForAutoTranslate, rotation[1], rotation[0], depthData, cameraIntrinsicMatrix)
             projectedImage[:, 0] += Tx
             projectedImage[:, 1] += Ty
             

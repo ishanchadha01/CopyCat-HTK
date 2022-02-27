@@ -53,7 +53,7 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
     Arguments:
         depthMap {np.ndarray} -- the depth map to clean
         image {np.ndarray} -- image to process using bodypix model
-        useBodyPixModel {bool} -- whether or not to use the bodypix model to clean the depth map (default: {True})
+        useBodyPixModel {int} -- which bodypix model to use to clean the depth map
         medianBlurKernelSize {int} -- kernel size for median blur (default: {5})
         guassianBlurKernelSize {int} -- kernel size for gaussian blur (default: {55})
         
@@ -62,7 +62,7 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
     """
     # Interesting thing to note: From visual inspections, the mean of the original depth map is really close to the depth of the body  
     # A different filtering mechanism if body segmentation is used
-    if type(useBodyPixModel) == 'int' & useBodyPixModel in bodyPixModelsDict:
+    if type(useBodyPixModel) == 'int' and useBodyPixModel in bodyPixModelsDict:
         bodypixModel = load_model(download_model(bodyPixModelsDict[useBodyPixModel]))
         result = bodypixModel.predict_single(image)
         mask = result.get_mask(threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
@@ -185,7 +185,7 @@ def createNewImage(projectedImage, originalPixels, image) -> np.ndarray:
     newImage[image_grid_cv[:, 0], image_grid_cv[:, 1], :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
 
     # Apply morphology to the new image to get rid of black spots surrounded by RGB values
-    new_image = cv2.morphologyEx(new_image, cv2.MORPH_CLOSE, np.ones((5,5),np.uint8))
+    newImage = cv2.morphologyEx(newImage, cv2.MORPH_CLOSE, np.ones((5,5),np.uint8))
     
     return newImage
 
