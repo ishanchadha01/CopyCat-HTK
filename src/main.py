@@ -34,7 +34,7 @@ from sklearn.model_selection import (
 
 sys.path.insert(0, '../../')
 from src.prepare_data import prepare_data
-from src.train import create_data_lists, train, trainSBHMM, get_logisitc_regressor, get_neural_net_classifier
+from src.train import create_data_lists, train, trainSBHMM, get_logistic_regressor, get_neural_net_classifier
 from src.adapt import pua, adapt
 from src.utils import get_results, save_results, load_json, get_arg_groups, get_hresults_data
 from src.test import test, testSBHMM, verify_simple, return_average_ll_per_sign, return_ll_per_correct_and_one_off_sign, verify_zahoor, verify_classifier
@@ -48,13 +48,14 @@ def main():
     
     parser = argparse.ArgumentParser()
     ############################## ARGUMENTS #####################################
-    #Important
+    # Important
     parser.add_argument('--prepare_data', action='store_true')
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_results_file', type=str,
                         default='all_results.json')
+    # ASK FOR DATASET PATHS @TODO
 
-    #Arguments for create_data_lists()
+    # Arguments for create_data_lists()
     parser.add_argument('--test_type', type=str, default='test_on_train',
                         choices=['none', 'test_on_train', 'cross_val', 'standard', 'progressive_user_adaptive', 'adaptive_htk'])
     parser.add_argument('--users', nargs='*', default=None)
@@ -71,14 +72,14 @@ def main():
     parser.add_argument('--phrase_len', type=int, default=0)
     parser.add_argument('--random_state', type=int, default=42) #The answer to life, the universe and everything
 
-    #Arguments for training
+    # Arguments for training
     parser.add_argument('--train_iters', nargs='*', type=int, default=[2,3,4])
     parser.add_argument('--hmm_insertion_penalty', default=-10)
     parser.add_argument('--mean', type=float, default=0.0)
     parser.add_argument('--variance', type=float, default=0.00001)
     parser.add_argument('--transition_prob', type=float, default=0.6)
 
-    #Arguments for SBHMM
+    # Arguments for SBHMM
     parser.add_argument('--train_sbhmm', action='store_true')    
     parser.add_argument('--sbhmm_iters', nargs='*', type=int, default=[2,3,4])
     parser.add_argument('--include_word_position', action='store_true')
@@ -94,7 +95,7 @@ def main():
     parser.add_argument('--parallel_classifier_training', action='store_true')
     parser.add_argument('--beam_threshold', default=100000000.0)
 
-    #Arguments for testing
+    # Arguments for testing
     parser.add_argument('--start', type=int, default=-2)
     parser.add_argument('--end', type=int, default=-1)
     parser.add_argument('--method', default='recognition', 
@@ -103,12 +104,12 @@ def main():
     parser.add_argument('--verification_method', default='zahoor', 
                         choices=['zahoor', 'logistic_regression', 'neural_net'])
 
-    #Arguments for adaptation
+    # Arguments for adaptation
     parser.add_argument('--adapt_iters', nargs='*', type=int, default=[2,3,4])
     parser.add_argument('--hmm_num', nargs='*', type=int, default=4)
     parser.add_argument('--new_users', nargs='*', default=None)
     
-    #Arguments for data augmentation
+    # Arguments for data augmentation
     '''
     1) Tell if data aug should be done
     2) Ask for rotationsX, Y
@@ -117,11 +118,32 @@ def main():
     6) autoTranslate=True
     7) pointForAutoTranslate=(3840 // 2, 2160 //2)
     '''
-    
+    parser.add_argument('--data_augmentation', type=bool, default=False)
+    parser.add_argument('--rotationsX', type=str, default="-10_-5_0_5_10")
+    parser.add_argument('--rotationsY', type=str, default="-10_-5_0_5_10")
+    parser.add_argument('--bodypix_model', type=int, default=1)
+    parser.add_argument('--autoTranslate', type=bool, default=True)
+    parser.add_argument('--pointForAutoTranslateX', type=int, default=3840 // 2)
+    parser.add_argument('--pointForAutoTranslateY', type=int, default=2160 // 2)
+
     args = parser.parse_args()
     ########################################################################################
     
     #if args.users: args.users = [user.capitalize() for user in args.users]
+    
+    # SECTION TO ADD DATA AUG TO PIPELINE
+    if args.data_augmentation:
+        try:
+            rotationsX = [int(x) for x in args.rotationsX.split('_')]
+            rotationsY = [int(y) for y in args.rotationsY.split('_')]
+        except:
+            raise ValueError('rotationsX and rotationsY must be integers separated by "_"')
+        # @Ishan specify the dataset folder and output path of where all the augmented videos should be saved
+        # The Data augmentation object does all the bounds checking, so you dont have to worry about that
+        da = DataAugmentation(datasetFolder='INSERT', outputPath='INSERT', rotationsX=rotationsX, rotationsY=rotationsY, useBodyPixModel=args.bodypix_model, pointForAutoTranslate=(args.pointForAutoTranslateX, args.pointForAutoTranslateY), autoTranslate=args.autoTranslate)
+        # @Ishan listOfVideos is a list of strings of the locations of all the augmented videos
+        listOfVideos = da.createDataAugmentedVideos()
+        pass
     
     cross_val_methods = {'kfold': (KFold, True),
                          'leave_one_phrase_out': (LeaveOneGroupOut(), True),

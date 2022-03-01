@@ -48,6 +48,9 @@ class DataAugmentation():
                 raise ValueError('X Rotation must be less than 90')
             elif abs(y) >= 90:
                 raise ValueError('Y Rotation must be less than 90')
+        
+        if useBodyPixModel not in bodyPixModelsDict:
+            raise ValueError(f'useBodyPixModel must be one of {bodyPixModelsDict.keys()}')
             
         if autoTranslate and type(pointForAutoTranslate) != 'tuple' and len(pointForAutoTranslate) != 2:
             raise TypeError('Point for auto translate must be a tuple of length 2')
@@ -157,6 +160,7 @@ class DataAugmentation():
                     
                     newImage = self.augmentFrame(image, capture, rotation, intrinsicCameraMatrix, distortionCoefficients)
 
+                    # For some reason, I'm not needing to convert from BGR to RGB. It's already RGB                
                     out.write(newImage)
                     pbarFrame.update(1)
                     
