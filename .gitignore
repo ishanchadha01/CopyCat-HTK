@@ -6,3 +6,4 @@ Mediapipe/results/*
 Mediapipe/lists/*
 __pycache__/
 *.pyc
+*.mkv
