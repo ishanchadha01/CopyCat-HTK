@@ -228,6 +228,12 @@ class DataAugmentation():
         return newImage
     
     def calculateMinRotationsPossible(self) -> tuple:
+        """calculateMinRotationsPossible returns the minimum rotations possible in the 2 main axes (going up and down)
+        For more information on how the math works out, check the Sign-Recognition channel or ask Guru
+        
+        Returns:
+            tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
+        """
         # Get a list of the videos
         listOfVideos = self.getListOfVideos()
         

@@ -233,7 +233,7 @@ def get3DMediapipeCoordinates(videos) -> list:
     """get3DMediapipeCoordinates get the mediapipe coordinates (non-normalized) and their actual depth according to the Azure Kinect Depth Camera
     This approach differs from the "cleanDepthMap" method. This method works on cleaning the depth for one point.
     cleanDepthMap cleans up the whole entire depth map. This is more efficient for just a single point since doing this process for the entire depth map is computationally expensive.
-    
+
     Arguments:
         videos {list} -- list of strings containing the video paths
 
@@ -242,18 +242,19 @@ def get3DMediapipeCoordinates(videos) -> list:
     """
     allVideos = []
     allCameraIntrinsicMatrices = []
-    
+
     # Iterate over the considered videos
     for video in videos:
         # Open the depth and the color videos
         playbackImage = cv2.VideoCapture(video)
         playbackDepth = PyK4APlayback(video)
         playbackDepth.open()
-        
-        cameraIntrinsicMatrix = playbackDepth.calibration.get_camera_matrix(camera=1)
-        
+
+        cameraIntrinsicMatrix = playbackDepth.calibration.get_camera_matrix(
+            camera=1)
+
         currVideo = []
-        
+
         while playbackImage.isOpened():
             # Get color image and the depth image for each frame
             ret, frame = playbackImage.read()
@@ -261,41 +262,47 @@ def get3DMediapipeCoordinates(videos) -> list:
                 break
             capture = playbackDepth.get_next_capture()
             depth = capture.transformed_depth
-            
-            currFrame = []
-            
-            # Get the openpose data in NumPy arrays
-            currMediapipeFeatures = extract_mediapipe_features([frame], normalize_xy=False)
-            hand0Features = np.array(list(currMediapipeFeatures[0]['landmarks'][0].values()))
-            hand1Features = np.array(list(currMediapipeFeatures[0]['landmarks'][1].values()))
-            poseFeatures = np.array(list(currMediapipeFeatures[0]['pose'].values()))
 
-            # Only add to currCoordinates if the hand and body are detected       
+            currFrame = []
+
+            # Get the openpose data in NumPy arrays
+            currMediapipeFeatures = extract_mediapipe_features(
+                [frame], normalize_xy=False)
+            hand0Features = np.array(
+                list(currMediapipeFeatures[0]['landmarks'][0].values()))
+            hand1Features = np.array(
+                list(currMediapipeFeatures[0]['landmarks'][1].values()))
+            poseFeatures = np.array(
+                list(currMediapipeFeatures[0]['pose'].values()))
+
+            # Only add to currCoordinates if the hand and body are detected
             if len(hand0Features) > 0:
                 currFrame.append(hand0Features)
             if len(hand1Features) > 0:
                 currFrame.append(hand1Features)
             if len(poseFeatures) > 0:
                 currFrame.append(poseFeatures)
-            
+
             currFrame = np.vstack(currFrame)
-            
+
             # Get the depth of each point and the depth values back to currVideoFrames
-            depthValues = np.apply_along_axis(lambda point: getNonZeroDepth(int(point[0]), int(point[1]), depth), 1, currFrame).reshape(-1, 1)
+            depthValues = np.apply_along_axis(lambda point: getNonZeroDepth(
+                int(point[0]), int(point[1]), depth), 1, currFrame).reshape(-1, 1)
             currFrame = np.hstack((currFrame, depthValues))
-            
+
             # Get the world coordinates
-            currFrame = calculateWorldCoordinates(currFrame, cameraIntrinsicMatrix)
-            
+            currFrame = calculateWorldCoordinates(
+                currFrame, cameraIntrinsicMatrix)
+
             # Add this to the list containing all the frames of the current video
             currVideo.append(currFrame)
-        
+
         allVideos.append(currVideo)
         allCameraIntrinsicMatrices.append(cameraIntrinsicMatrix)
-    
+
     return allVideos, allCameraIntrinsicMatrices
-            
-            
+
+
 def getNonZeroDepth(row, col, depth) -> float:
     """getNonZeroDepth gets the non-zero depth value of a point
 
@@ -309,67 +316,119 @@ def getNonZeroDepth(row, col, depth) -> float:
     """
     if depth[row, col] != 0:
         return depth[row, col]
-    
+
     # Initial values
     percentNonZero = 0
     radius = 1
-    
+
     # We want the area considered to have a majority of non-zero depth values
     # We keep increasing the radius until we have a majority of non-zero depth values
     while percentNonZero > 0.5:
         minRow = row - radius if row - radius > 0 else 0
-        maxRow = col + radius if col + radius < depth.shape[0] else depth.shape[0]
+        maxRow = col + radius if col + \
+            radius < depth.shape[0] else depth.shape[0]
         minCol = col - radius if col - radius > 0 else 0
-        maxCol = col + radius if col + radius < depth.shape[1] else depth.shape[1]
-        
+        maxCol = col + radius if col + \
+            radius < depth.shape[1] else depth.shape[1]
+
         surroundingPoints = depth[minRow:maxRow, minCol:maxCol]
-        percentNonZero = np.count_nonzero(surroundingPoints) / ((maxRow - minRow) * (maxCol - minCol))
-    
+        percentNonZero = np.count_nonzero(
+            surroundingPoints) / ((maxRow - minRow) * (maxCol - minCol))
+
     # Consider the points where the depth is not zero
     nonZeroPoints = surroundingPoints[surroundingPoints != 0]
-    
+
     # Return the average of the non-zero points
     return np.mean(nonZeroPoints)
 
+
 def rotation_v_0(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
+    """rotation_v_0 calculates the minimum rotation going left
+
+    Arguments:
+        X_int {float} -- the world X coordinate of the point
+        Y_int {float} -- the world Y coordinate of the point
+        Z_int {float} -- the world Z coordinate of the point
+        cameraIntrinsicMatrix {np.ndarray} -- 3x3 camera matrix
+
+    Returns:
+        float -- minimum rotation going left
+    """
     f_y = cameraIntrinsicMatrix[1, 1]
     c_y = cameraIntrinsicMatrix[1, 2]
-    
+
     numerator = (Z_int * c_y / f_y) + Y_int
     denominator = (-1 * Y_int * c_y / f_y) + Z_int
     theta_x_radians = np.arctan(numerator / denominator)
     theta_x_degrees = np.rad2deg(theta_x_radians)
-    
+
     return theta_x_degrees
 
+
 def rotation_v_2160(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
+    """rotation_v_2160 calculates the minimum rotation going right
+
+    Arguments:
+        X_int {float} -- the world X coordinate of the point
+        Y_int {float} -- the world Y coordinate of the point
+        Z_int {float} -- the world Z coordinate of the point
+        cameraIntrinsicMatrix {np.ndarray} -- 3x3 camera matrix
+
+    Returns:
+        float -- minimum rotation going right
+    """
     f_y = cameraIntrinsicMatrix[1, 1]
     c_y = cameraIntrinsicMatrix[1, 2]
-    
+
     numerator = (-1 * Z_int * (2160 - c_y) / f_y) + Y_int
     denominator = (Y_int * (2160 - c_y) / f_y) + Z_int
     theta_x_radians = np.arctan(numerator / denominator)
     theta_x_degrees = np.rad2deg(theta_x_radians)
-    
+
     return theta_x_degrees
 
+
 def rotation_u_0(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
+    """rotation_u_0 calculates the minimum rotation going up
+
+    Arguments:
+        X_int {float} -- the world X coordinate of the point
+        Y_int {float} -- the world Y coordinate of the point
+        Z_int {float} -- the world Z coordinate of the point
+        cameraIntrinsicMatrix {np.ndarray} -- 3x3 camera matrix
+
+    Returns:
+        float -- minimum rotation going up
+    """
     f_x = cameraIntrinsicMatrix[0, 0]
     c_x = cameraIntrinsicMatrix[0, 2]
-    
+
     numerator = (-1 * Z_int * (0 - c_x) / f_x) + X_int
     denominator = (X_int * (0 - c_x) / f_x) + Z_int
     theta_x_radians = np.arctan(numerator / denominator)
     theta_x_degrees = np.rad2deg(theta_x_radians)
-    
+
     return theta_x_degrees
 
+
 def rotation_u_3840(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
+    """rotation_u_3840 calculates the minimum rotation going down
+
+    Arguments:
+        X_int {float} -- the world X coordinate of the point
+        Y_int {float} -- the world Y coordinate of the point
+        Z_int {float} -- the world Z coordinate of the point
+        cameraIntrinsicMatrix {np.ndarray} -- 3x3 camera matrix
+
+    Returns:
+        float -- minimum rotation going down
+    """
     f_x = cameraIntrinsicMatrix[0, 0]
     c_x = cameraIntrinsicMatrix[0, 2]
-    
+
     numerator = (-1 * Z_int * (2160 - c_x) / f_x) + X_int
     denominator = (X_int * (2160 - c_x) / f_x) + Z_int
     theta_x_radians = np.arctan(numerator / denominator)
     theta_x_degrees = np.rad2deg(theta_x_radians)
-
+    
+    return theta_x_degrees
