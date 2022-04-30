@@ -231,8 +231,6 @@ def createPixelCoordinateMatrix(depthData) -> np.ndarray:
 
 def get3DMediapipeCoordinates(videos) -> list:
     """get3DMediapipeCoordinates get the mediapipe coordinates (non-normalized) and their actual depth according to the Azure Kinect Depth Camera
-    This approach differs from the "cleanDepthMap" method. This method works on cleaning the depth for one point.
-    cleanDepthMap cleans up the whole entire depth map. This is more efficient for just a single point since doing this process for the entire depth map is computationally expensive.
 
     Arguments:
         videos {list} -- list of strings containing the video paths
@@ -275,7 +273,7 @@ def get3DMediapipeCoordinates(videos) -> list:
             poseFeatures = np.array(
                 list(currMediapipeFeatures[0]['pose'].values()))
 
-            # Only add to currCoordinates if the hand and body are detected
+            # Only add to currFrame if the hand and body are detected
             if len(hand0Features) > 0:
                 currFrame.append(hand0Features)
             if len(hand1Features) > 0:
@@ -285,9 +283,10 @@ def get3DMediapipeCoordinates(videos) -> list:
 
             currFrame = np.vstack(currFrame)
 
-            # Get the depth of each point and the depth values back to currVideoFrames
+            # Get the depth of each point, convert depth values to meters, and add the depth values back to currVideoFrames
             depthValues = np.apply_along_axis(lambda point: getNonZeroDepth(
                 int(point[0]), int(point[1]), depth), 1, currFrame).reshape(-1, 1)
+            depthValues = depthValues / 1000
             currFrame = np.hstack((currFrame, depthValues))
 
             # Get the world coordinates
@@ -305,6 +304,9 @@ def get3DMediapipeCoordinates(videos) -> list:
 
 def getNonZeroDepth(row, col, depth) -> float:
     """getNonZeroDepth gets the non-zero depth value of a point
+    This approach differs from the "cleanDepthMap" method. This method works on cleaning the depth for one point. cleanDepthMap cleans up the whole entire depth map. 
+    This method works best for just a single point since doing this process for the entire depth map is computationally expensive.
+    This method is also supposed to only handle cases where the pose coordinate has a 0-depth voxel, which is considered as "invalid" by the Azure Kinect SDK.
 
     Arguments:
         row {int} -- the row index of the point
@@ -323,7 +325,7 @@ def getNonZeroDepth(row, col, depth) -> float:
 
     # We want the area considered to have a majority of non-zero depth values
     # We keep increasing the radius until we have a majority of non-zero depth values
-    while percentNonZero > 0.5:
+    while percentNonZero > 0.5 and radius < depth.shape[0] and radius < depth.shape[1]:
         minRow = row - radius if row - radius > 0 else 0
         maxRow = col + radius if col + \
             radius < depth.shape[0] else depth.shape[0]
