@@ -432,5 +432,5 @@ def rotation_u_3840(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
     denominator = (X_int * (2160 - c_x) / f_x) + Z_int
     theta_x_radians = np.arctan(numerator / denominator)
     theta_x_degrees = np.rad2deg(theta_x_radians)
-    
+
     return theta_x_degrees
