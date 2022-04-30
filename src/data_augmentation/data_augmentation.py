@@ -2,12 +2,17 @@
 import cv2
 import numpy as np
 import os
+import sys
 
 from pyk4a import PyK4APlayback
 from pytransform3d.rotations import active_matrix_from_angle
 from itertools import product
 from tqdm import tqdm # Ensure that version is 4.51.0 to allow for nested progress bars
 from data_augmentation_utils import *
+from openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
+
+# Adds the src folder to the path so generate_mediapipe_features.py can be imported
+sys.path.append(os.path.abspath('../'))
 
 class DataAugmentation():
     """DataAugmentation is a class that contains all the data augmentation methods and performs data augmentation to create new videos"""
@@ -50,7 +55,7 @@ class DataAugmentation():
                 raise ValueError('Y Rotation must be less than 90')
         
         if useBodyPixModel not in bodyPixModelsDict:
-            raise ValueError(f'useBodyPixModel must be one of {bodyPixModelsDict.keys()}')
+            raise ValueError(f'useBodyPixModel must be one of {list(bodyPixModelsDict.keys())}')
             
         if autoTranslate and type(pointForAutoTranslate) != 'tuple' and len(pointForAutoTranslate) != 2:
             raise TypeError('Point for auto translate must be a tuple of length 2')
@@ -66,6 +71,8 @@ class DataAugmentation():
         self.outputPath = outputPath
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
+        
+        print(self.calculateMinRotationsPossible())
     
     def __str__(self) -> str:
         """__str__ returns a string representation of the DataAugmentation Object when used in print statements
@@ -102,14 +109,14 @@ class DataAugmentation():
         self.pbarAllVideosRotations = tqdm(total=len(listOfVideos) * len(self.rotations))
         self.pbarAllVideosRotations.set_description("Total Videos Done For 1 Combination")
         # Start applying data augmentation to each video while appending the augmented video path to a new list
-        newVideos = []
+        newJSONs = []
         for video in listOfVideos:
             for rotation in self.rotations:
-                newVideos.append(self.augmentVideo(video, rotation=rotation))
+                newJSONs.append(self.augmentVideo(video, rotation=rotation))
                 self.pbarAllVideosRotations.update(1)
             self.pbarAllVideos.update(1)
                
-        return newVideos
+        return newJSONs
     
     def augmentVideo(self, video, rotation) -> str:
         """augmentVideo augments a video with a given rotation
@@ -133,25 +140,18 @@ class DataAugmentation():
         # Extract the camera calibrations used in cv2.projectPoints
         intrinsicCameraMatrix = playbackDepth.calibration.get_camera_matrix(camera=1)
         distortionCoefficients = playbackDepth.calibration.get_distortion_coefficients(camera=1)
-
-        # Define new video
-        codec = cv2.VideoWriter_fourcc('M','J','P','G')
-        fps = playbackImage.get(cv2.CAP_PROP_FPS)
         
         rotationName = f"rotation({rotation[0]},{rotation[1]})"
-        
-        currVideoPath = f'./{self.outputPath}/{rotationName}_{videoName}.avi'
-        frameWidth = int(playbackImage.get(3))
-        frameHeight = int(playbackImage.get(4))
+        currJSONPath = f'./{self.outputPath}/{rotationName}_{videoName}.json'
         
         # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
-        if not os.path.exists(currVideoPath):
-            out = cv2.VideoWriter(currVideoPath, codec, fps, (frameWidth, frameHeight))
+        if not os.path.exists(currJSONPath):
+            augmentedFrames = []
             frameCount = countFrames(video)
             pbarFrame = tqdm(total=frameCount)
             pbarFrame.set_description(f"{user}-{rotationName}")
             
-            # Iterate over the video and get the projected image. Then write that image to the new video
+            # Iterate over the video and get the projected image
             while (True):
                 try:
                     
@@ -161,18 +161,21 @@ class DataAugmentation():
                     newImage = self.augmentFrame(image, capture, rotation, intrinsicCameraMatrix, distortionCoefficients)
 
                     # For some reason, I'm not needing to convert from BGR to RGB. It's already RGB                
-                    out.write(newImage)
+                    augmentedFrames.append(newImage)
+                    
                     pbarFrame.update(1)
                     
                 except EOFError:
                     break
             
+            # Extract the mediapipe features for every frame
+            extract_mediapipe_features(augmentedFrames, currJSONPath)
+            
             # Close all the videos
             playbackDepth.close()
-            out.release()
             playbackImage.release()
             
-        return currVideoPath
+        return currJSONPath
     
     def augmentFrame(self, image, capture, rotation, cameraIntrinsicMatrix, distortionCoeffients) -> np.ndarray:
         """augmentFrameRotation rotates the current frame by the given rotation
@@ -223,3 +226,40 @@ class DataAugmentation():
         newImage = createNewImage(projectedImage, originalPixels, image)
         
         return newImage
+    
+    def calculateMinRotationsPossible(self) -> tuple:
+        # Get a list of the videos
+        listOfVideos = self.getListOfVideos()
+        
+        # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
+        poseFeatures, cameraIntrinsicMatrices = get3DMediapipeCoordinates(listOfVideos)
+        
+        # Initial minimum values set to infinity
+        min_v_0 = np.inf
+        min_v_2160 = np.inf
+        min_u_0 = np.inf
+        min_u_3840 = np.inf
+        
+        # Apply all the 4 rotations possible to each point by iterating over each video
+        for videoPoseFeature, cameraIntrinsicMatrix in zip(poseFeatures, cameraIntrinsicMatrices):
+            curr_rotations_v_0 = np.apply_along_axis(lambda row: rotation_v_0(row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
+            curr_rotations_v_2160 = np.apply_along_axis(lambda row: rotation_v_2160(row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
+            curr_rotations_u_0 = np.apply_along_axis(lambda row: rotation_u_0(row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
+            curr_rotations_u_3840 = np.apply_along_axis(lambda row: rotation_u_3840(row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
+
+            curr_min_v_0 = np.min(curr_rotations_v_0)
+            curr_min_v_2160 = np.min(curr_rotations_v_2160)
+            curr_min_u_0 = np.min(curr_rotations_u_0)
+            curr_min_u_3840 = np.min(curr_rotations_u_3840)
+            
+            if curr_min_v_0 < min_v_0:
+                min_v_0 = curr_min_v_0
+            if curr_min_v_2160 < min_v_2160:
+                min_v_2160 = curr_min_v_2160
+            if curr_min_u_0 < min_u_0:
+                min_u_0 = curr_min_u_0
+            if curr_min_u_3840 < min_u_3840:
+                min_u_3840 = curr_min_u_3840
+        
+        # Return these minimum rotations
+        return min_v_0, min_v_2160, min_u_0, min_u_3840
