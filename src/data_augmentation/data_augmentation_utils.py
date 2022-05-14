@@ -96,7 +96,7 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
     return depth
 
 
-def calculateWorldCoordinates(threeDPoints, cameraIntrinsicMatrix):
+def calculateWorldCoordinates(threeDPoints, cameraIntrinsicMatrix) -> np.ndarray:
     """calculateWorldCoordinates calculates the world coordinates (3D points) from the 2D array
 
     Arguments:
@@ -314,7 +314,7 @@ def getNonZeroDepth(row, col, depth) -> float:
         depth {np.ndarray} -- the depth map of the frame
 
     Returns:
-        float -- _description_
+        float -- the non-zero depth at a specific pixel
     """
     if depth[row, col] != 0:
         return depth[row, col]

@@ -11,7 +11,7 @@ import tqdm
 
 
 
-def create_htk_files(htk_dir: str = os.path.join('data', 'htk'), ark_dir: str = os.path.join('data', 'ark', '*.ark')) -> None:
+def create_htk_files(htk_dir: str = os.path.join('../../data', 'htk'), ark_dir: str = os.path.join('../../data', 'ark', '*.ark')) -> None:
     """Converts .ark files to .htk files for use by HTK.
     """
     if os.path.exists(htk_dir):
@@ -23,8 +23,8 @@ def create_htk_files(htk_dir: str = os.path.join('data', 'htk'), ark_dir: str = 
     print(len(ark_files))
 
     for ark_file in tqdm.tqdm(ark_files):
-        
-        kaldi_command = (f'~/kaldi/src/featbin/copy-feats-to-htk '
+        # CHANGE KALDI PATH TO BE CORRECT!!!
+        kaldi_command = (f'/espnet/kaldi/src/featbin/copy-feats-to-htk '
                          f'--output-dir={htk_dir} '
                          f'--output-ext=htk '
                          f'--sample-period=40000 '

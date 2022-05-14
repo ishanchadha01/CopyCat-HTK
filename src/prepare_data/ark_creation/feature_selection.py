@@ -17,6 +17,8 @@ import pandas as pd
 from scipy import interpolate
 from scipy.spatial.distance import cdist
 
+from warnings import simplefilter
+simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
 def _load_json(json_file: str) -> dict:
     """Load JSON file TODO: Remove and use src.utils.load_json.

@@ -78,7 +78,7 @@ class DataAugmentation():
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
 
-        print(self.calculateMinRotationsPossible())
+        min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
 
     def __str__(self) -> str:
         """__str__ returns a string representation of the DataAugmentation Object when used in print statements
@@ -115,7 +115,7 @@ class DataAugmentation():
         self.pbarAllVideosRotations = tqdm(
             total=len(listOfVideos) * len(self.rotations))
         self.pbarAllVideosRotations.set_description(
-            "Total Videos Done For 1 Combination")
+            "Total Combinations Done")
         # Start applying data augmentation to each video while appending the augmented video path to a new list
         newJSONs = []
         for video in listOfVideos:
@@ -151,8 +151,9 @@ class DataAugmentation():
         distortionCoefficients = playbackDepth.calibration.get_distortion_coefficients(
             camera=1)
 
-        rotationName = f"rotation({rotation[0]},{rotation[1]})_autoTranslate({self.autoTranslate})_pointForAutoTranslate({self.pointForAutoTranslate[0]},{self.pointForAutoTranslate[1]})"
-        currJSONPath = f'./{self.outputPath}/{rotationName}_{videoName}.json'
+        rotationName = f"rotation({rotation[0]},{rotation[1]})"
+        fullRotationName = f"{rotationName}_autoTranslate({self.autoTranslate})_pointForAutoTranslate({self.pointForAutoTranslate[0]},{self.pointForAutoTranslate[1]})"
+        currJSONPath = f'./{self.outputPath}/{fullRotationName}_{videoName}.json'
 
         # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
         if not os.path.exists(currJSONPath):
@@ -189,13 +190,13 @@ class DataAugmentation():
         return currJSONPath
 
     def augmentFrame(self, image, capture, rotation, cameraIntrinsicMatrix, distortionCoeffients) -> np.ndarray:
-        """augmentFrameRotation rotates the current frame by the given rotation
+        """augmentFrame rotates the current frame by the given rotation
         Arguments:
             image {np.ndarray} -- RGB image of the current frame
             capture {pyk4a.capture} -- A capture object containing the depth data for the current frame
             rotation {list} -- list of tuple containing X and Y rotation to apply to the video
             cameraIntrinsicMatrix {np.ndarray} -- 3x3 matrix explaining focal length, principal point, and aspect ratio of the camera
-            distortionCoeffients {[type]} -- 1x8 matrix explaining the distortion of the camera
+            distortionCoeffients {np.ndarray} -- 1x8 matrix explaining the distortion of the camera
 
         Returns:
             np.ndarray -- RGB projected image of the current frame given the rotation
@@ -261,22 +262,35 @@ class DataAugmentation():
         min_u_0 = np.inf
         min_u_3840 = np.inf
 
+        pbarCalculateMinRotations = tqdm(total=len(poseFeatures) * 4)
+
         # Apply all the 4 rotations possible to each point by iterating over each video
         for videoPoseFeature, cameraIntrinsicMatrix in zip(poseFeatures, cameraIntrinsicMatrices):
+            pbarCalculateMinRotations.set_description("Rotation V=0")
             curr_rotations_v_0 = np.apply_along_axis(lambda row: rotation_v_0(
                 row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
+            pbarCalculateMinRotations.update(1)
+            
+            pbarCalculateMinRotations.set_description("Rotation V=2160")
             curr_rotations_v_2160 = np.apply_along_axis(lambda row: rotation_v_2160(
                 row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
+            pbarCalculateMinRotations.update(1)
+            
+            pbarCalculateMinRotations.set_description("Rotation U=0")
             curr_rotations_u_0 = np.apply_along_axis(lambda row: rotation_u_0(
                 row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
+            pbarCalculateMinRotations.update(1)
+            
+            pbarCalculateMinRotations.set_description("Rotation U=3840")
             curr_rotations_u_3840 = np.apply_along_axis(lambda row: rotation_u_3840(
                 row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
-
+            pbarCalculateMinRotations.update(1)
+            
+            # Calculate the minimum values and replace the minimum values if they are smaller
             curr_min_v_0 = np.min(curr_rotations_v_0)
             curr_min_v_2160 = np.min(curr_rotations_v_2160)
             curr_min_u_0 = np.min(curr_rotations_u_0)
             curr_min_u_3840 = np.min(curr_rotations_u_3840)
-
             if curr_min_v_0 < min_v_0:
                 min_v_0 = curr_min_v_0
             if curr_min_v_2160 < min_v_2160:
