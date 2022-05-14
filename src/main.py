@@ -139,7 +139,7 @@ def crossValVerificationFold(train_data: list, test_data: list, args: object, fo
     elif args.verification_method == "logistic_regression":
         print("Training logistic regression classifier for each sign")
         for sign in tqdm.tqdm(average_ll_per_sign["correct"]):
-            classifier[sign] = get_logisitc_regressor(average_ll_per_sign["correct"][sign], average_ll_per_sign["incorrect"][sign], args.random_state)
+            classifier[sign] = get_logistic_regressor(average_ll_per_sign["correct"][sign], average_ll_per_sign["incorrect"][sign], args.random_state)
     elif args.verification_method == "neural_net":
         print("Training neural net classifier for each sign")
         for sign in tqdm.tqdm(average_ll_per_sign["correct"]):
