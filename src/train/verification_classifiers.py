@@ -2,7 +2,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 import numpy as np
 
-def get_logisitc_regressor(positive_data, negative_data, random_state):
+def get_logistic_regressor(positive_data, negative_data, random_state):
     labels_correct = np.ones(positive_data.shape)
     labels_incorrect = np.zeros(negative_data.shape)
     train_data = np.concatenate((positive_data, negative_data), axis=None).reshape((-1, 1))

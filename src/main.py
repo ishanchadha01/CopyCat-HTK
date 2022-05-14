@@ -34,9 +34,9 @@ from sklearn.model_selection import (
 
 sys.path.insert(0, '../../')
 from src.prepare_data import prepare_data
-from src.train import create_data_lists, train, trainSBHMM, get_neural_net_classifier
+from src.train import create_data_lists, train, trainSBHMM, get_logistic_regressor, get_neural_net_classifier
 from src.adapt import pua, adapt
-from src.utils import get_results, save_results, load_json
+from src.utils import get_results, save_results, load_json, get_arg_groups, get_hresults_data
 from src.test import test, testSBHMM, verify_simple, return_average_ll_per_sign, return_ll_per_correct_and_one_off_sign, verify_zahoor, verify_classifier
 from src.utils.file_util import *
 from src.utils.cross_val_util import *
