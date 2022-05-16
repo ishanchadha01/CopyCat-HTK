@@ -340,7 +340,7 @@ def main():
     if args.prepare_data and not args.test_type == 'progressive_user_adaptive' and not args.test_type == 'adaptive_htk':
         # this will include users in verification
         print(args.users)
-        prepare_data(features_config, args.users)
+        prepare_data(features_config, args.users, args.parallel_jobs)
 
     if args.test_type == 'none':
         sys.exit()
