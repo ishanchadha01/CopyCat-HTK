@@ -8,8 +8,8 @@ from pyk4a import PyK4APlayback
 from pytransform3d.rotations import active_matrix_from_angle
 from itertools import product
 from tqdm import tqdm  # Ensure that version is 4.51.0 to allow for nested progress bars
-from data_augmentation_utils import *
-from openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
+from .data_augmentation_utils import *
+from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
 sys.path.append(os.path.abspath('../'))

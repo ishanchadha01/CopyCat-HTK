@@ -6,7 +6,7 @@ import sys
 import numpy as np
 import tensorflow as tf
 
-from openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
+from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 from tf_bodypix.api import download_model, load_model, BodyPixModelPaths
 from pyk4a import PyK4APlayback
 
