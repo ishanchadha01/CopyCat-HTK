@@ -122,7 +122,7 @@ def create_ark_files(features_config: dict, users: list, num_jobs: int, phrase_l
             ),
             features_filepaths,
             num_cpus=num_jobs,
-            desc="Generating ark/htk using select_features data model"
+            desc="Generating ark using select_features"
         )
         pbar = tqdm(total=len(list(features_df_list)), desc="Writing ark files to disk")
         for features_df, ark_filepath, title in features_df_list:
