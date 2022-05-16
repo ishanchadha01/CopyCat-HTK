@@ -307,17 +307,48 @@ def main():
     
     # SECTION TO ADD DATA AUG TO PIPELINE
     if args.data_augmentation:
+        print("Data augmentation is enabled -- Prepare Data will be enabled by default")
+        print("RotationsX:", args.rotationsX)
+        print("RotationsY:", args.rotationsY)
+        print("Bodypix model:", args.bodypix_model)
+        print("Auto translate:", args.autoTranslate)
+        print("Point for auto translate:", args.pointForAutoTranslateX, args.pointForAutoTranslateY)
+        print("\n")
+        args.rotationsX = [int(x) for x in args.rotationsX.split("_")]
+        args.rotationsY = [int(x) for x in args.rotationsY.split("_")]
+        args.pointForAutoTranslateX = int(args.pointForAutoTranslateX)
+        args.pointForAutoTranslateY = int(args.pointForAutoTranslateY)
+        args.bodypix_model = int(args.bodypix_model)
+        args.autoTranslate = bool(args.autoTranslate)
+        if args.autoTranslate:
+            print("Auto translate is enabled")
+        else:
+            print("Auto translate is disabled")
+    
+    if args.data_augmentation:
         try:
             rotationsX = [int(x) for x in args.rotationsX.split('_')]
             rotationsY = [int(y) for y in args.rotationsY.split('_')]
         except:
             raise ValueError('rotationsX and rotationsY must be integers separated by "_"')
-        # @Ishan specify the dataset folder and output path of where all the augmented videos should be saved
+        
         # The Data augmentation object does all the bounds checking, so you dont have to worry about that
-        da = DataAugmentation(datasetFolder='INSERT', outputPath='INSERT', rotationsX=rotationsX, rotationsY=rotationsY, useBodyPixModel=args.bodypix_model, pointForAutoTranslate=(args.pointForAutoTranslateX, args.pointForAutoTranslateY), autoTranslate=args.autoTranslate)
-        # @Ishan listOfVideos is a list of strings of the locations of all the augmented videos
-        listOfVideos = da.createDataAugmentedVideos()
-        pass
+        da = DataAugmentation(
+            datasetFolder=features_config['features_dir'], 
+            outputPath=f"{features_config['features_dir']}/augmented", 
+            rotationsX=rotationsX, 
+            rotationsY=rotationsY, 
+            useBodyPixModel=args.bodypix_model, 
+            pointForAutoTranslate=(args.pointForAutoTranslateX, args.pointForAutoTranslateY), 
+            autoTranslate=args.autoTranslate,
+            num_jobs=args.parallel_jobs
+        )
+        # listOfAugmentedVideos is a list of strings of the locations of all the augmented videos
+        da.createDataAugmentedVideos()
+        
+        # Prepare data for all the augmented videos
+        prepare_data(features_config, args.users, args.parallel_jobs)
+        
     
     cross_val_methods = {'kfold': (KFold, True),
                          'leave_one_phrase_out': (LeaveOneGroupOut(), True),

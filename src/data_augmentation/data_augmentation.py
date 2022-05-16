@@ -7,7 +7,9 @@ import sys
 from pyk4a import PyK4APlayback
 from pytransform3d.rotations import active_matrix_from_angle
 from itertools import product
+from functools import partial
 from tqdm import tqdm  # Ensure that version is 4.51.0 to allow for nested progress bars
+from p_tqdm import p_map
 from .data_augmentation_utils import *
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 
@@ -36,7 +38,6 @@ class DataAugmentation():
 
         Raises:
             NameError: If the dataset folder does not exist
-            NameError: If the output path does not exist
             ValueError: If the X rotation is greater than 90 or less than 0
             ValueError: If the Y rotation is greater than 90 or less than 0
             TypeError: The length of the point for auto translate is not 2
@@ -47,7 +48,13 @@ class DataAugmentation():
             raise NameError(f'Dataset folder {datasetFolder} does not exist')
 
         if not os.path.exists(outputPath):
-            raise NameError(f'Output path {outputPath} does not exist')
+            print("Output path does not exist. Creating output path...")
+            os.makedirs(outputPath)
+    
+        # Delete the previous augmentations before making new ones
+        if os.path.exists(outputPath):
+            os.system(f'rm -rf {outputPath}')
+        os.makedirs(outputPath)
 
         # If the x or y angle is negative or greater than 90, raise an error
         for x, y in zip(rotationsX, rotationsY):
@@ -156,36 +163,69 @@ class DataAugmentation():
         currJSONPath = f'./{self.outputPath}/{fullRotationName}_{videoName}.json'
 
         # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
-        if not os.path.exists(currJSONPath):
-            augmentedFrames = []
-            frameCount = countFrames(video)
-            pbarFrame = tqdm(total=frameCount)
-            pbarFrame.set_description(f"{user}-{rotationName}")
+        allImages = []
+        allCaptures = []
+        
+        # Iterate through the frames of the video to get all the depth maps and RGB images
+        while True:
+            try:
+                capture = playbackDepth.get_next_capture()
+                _, image = playbackImage.read()
+                allCaptures.append(capture)
+                allImages.append(image)
+            except EOFError:
+                break
+        
+        # Close the video
+        playbackDepth.close()
+        playbackImage.release()
+        
+        # Parallelize the frame augmentation process to speed up the process
+        augmentedFrames = p_map(
+            partial(
+                self.augmentFrame, 
+                rotation=rotation, 
+                cameraIntrinsicMatrix=intrinsicCameraMatrix, 
+                distortionCoefficients=distortionCoefficients
+            ),
+            allImages, 
+            allCaptures,
+            desc=f"{user}-{rotationName}"
+        )
+        
+        # Extract the mediapipe features for every frame
+        extract_mediapipe_features(augmentedFrames, currJSONPath)
+        
+        # if not os.path.exists(currJSONPath):
+        #     augmentedFrames = []
+        #     frameCount = countFrames(video)
+        #     pbarFrame = tqdm(total=frameCount)
+        #     pbarFrame.set_description(f"{user}-{rotationName}")
 
-            # Iterate over the video and get the projected image
-            while (True):
-                try:
+        #     # Iterate over the video and get the projected image
+        #     while (True):
+        #         try:
 
-                    capture = playbackDepth.get_next_capture()
-                    _, image = playbackImage.read()
+        #             capture = playbackDepth.get_next_capture()
+        #             _, image = playbackImage.read()
 
-                    newImage = self.augmentFrame(
-                        image, capture, rotation, intrinsicCameraMatrix, distortionCoefficients)
+        #             newImage = self.augmentFrame(
+        #                 image, capture, rotation, intrinsicCameraMatrix, distortionCoefficients)
 
-                    # For some reason, I'm not needing to convert from BGR to RGB. It's already RGB
-                    augmentedFrames.append(newImage)
+        #             # For some reason, I'm not needing to convert from BGR to RGB. It's already RGB
+        #             augmentedFrames.append(newImage)
 
-                    pbarFrame.update(1)
+        #             pbarFrame.update(1)
 
-                except EOFError:
-                    break
+        #         except EOFError:
+        #             break
 
-            # Extract the mediapipe features for every frame
-            extract_mediapipe_features(augmentedFrames, currJSONPath)
+        #     # Extract the mediapipe features for every frame
+        #     extract_mediapipe_features(augmentedFrames, currJSONPath)
 
-            # Close all the videos
-            playbackDepth.close()
-            playbackImage.release()
+        #     # Close the video
+        #     playbackDepth.close()
+        #     playbackImage.release()
 
         return currJSONPath
 
@@ -262,7 +302,7 @@ class DataAugmentation():
         min_u_0 = np.inf
         min_u_3840 = np.inf
 
-        pbarCalculateMinRotations = tqdm(total=len(poseFeatures) * 4)
+        pbarCalculateMinRotations = tqdm(total=len(poseFeatures) * 4, desc="Calculating min rotations")
 
         # Apply all the 4 rotations possible to each point by iterating over each video
         for videoPoseFeature, cameraIntrinsicMatrix in zip(poseFeatures, cameraIntrinsicMatrices):
