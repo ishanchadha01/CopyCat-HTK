@@ -303,45 +303,37 @@ def main():
     args = parser.parse_args()
     ########################################################################################
     
+    features_config = load_json('configs/features.json')
+
     #if args.users: args.users = [user.capitalize() for user in args.users]
     
     # SECTION TO ADD DATA AUG TO PIPELINE
     if args.data_augmentation:
         print("Data augmentation is enabled -- Prepare Data will be enabled by default")
-        print("RotationsX:", args.rotationsX)
-        print("RotationsY:", args.rotationsY)
+        print("RotationsX:", [int(x) for x in args.rotationsX.split("_")])
+        print("RotationsY:", [int(x) for x in args.rotationsY.split("_")])
         print("Bodypix model:", args.bodypix_model)
         print("Auto translate:", args.autoTranslate)
         print("Point for auto translate:", args.pointForAutoTranslateX, args.pointForAutoTranslateY)
-        print("\n")
         args.rotationsX = [int(x) for x in args.rotationsX.split("_")]
         args.rotationsY = [int(x) for x in args.rotationsY.split("_")]
         args.pointForAutoTranslateX = int(args.pointForAutoTranslateX)
         args.pointForAutoTranslateY = int(args.pointForAutoTranslateY)
         args.bodypix_model = int(args.bodypix_model)
         args.autoTranslate = bool(args.autoTranslate)
-        if args.autoTranslate:
-            print("Auto translate is enabled")
-        else:
-            print("Auto translate is disabled")
     
     if args.data_augmentation:
-        try:
-            rotationsX = [int(x) for x in args.rotationsX.split('_')]
-            rotationsY = [int(y) for y in args.rotationsY.split('_')]
-        except:
-            raise ValueError('rotationsX and rotationsY must be integers separated by "_"')
-        
+
         # The Data augmentation object does all the bounds checking, so you dont have to worry about that
         da = DataAugmentation(
-            datasetFolder=features_config['features_dir'], 
+            datasetFolder=features_config['raw_videos_dir'], 
             outputPath=f"{features_config['features_dir']}/augmented", 
-            rotationsX=rotationsX, 
-            rotationsY=rotationsY, 
+            rotationsX=args.rotationsX, 
+            rotationsY=args.rotationsY, 
             useBodyPixModel=args.bodypix_model, 
             pointForAutoTranslate=(args.pointForAutoTranslateX, args.pointForAutoTranslateY), 
             autoTranslate=args.autoTranslate,
-            num_jobs=args.parallel_jobs
+            numJobs=args.parallel_jobs
         )
         # listOfAugmentedVideos is a list of strings of the locations of all the augmented videos
         da.createDataAugmentedVideos()
@@ -359,7 +351,6 @@ def main():
     cvm = args.cross_val_method
     cross_val_method, use_groups = cross_val_methods[args.cross_val_method]
 
-    features_config = load_json('configs/features.json')
     all_results = {'features': features_config['selected_features'],
                    'average': {}}
                    

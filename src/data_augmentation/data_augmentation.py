@@ -5,7 +5,6 @@ import os
 import sys
 
 from pyk4a import PyK4APlayback
-from pytransform3d.rotations import active_matrix_from_angle
 from itertools import product
 from functools import partial
 from tqdm import tqdm  # Ensure that version is 4.51.0 to allow for nested progress bars
@@ -20,7 +19,7 @@ sys.path.append(os.path.abspath('../'))
 class DataAugmentation():
     """DataAugmentation is a class that contains all the data augmentation methods and performs data augmentation to create new videos"""
 
-    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2)):
+    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numJobs=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2)):
         """__init__ initialized the Data Augmentation object with the required parameters
 
         Arguments:
@@ -78,6 +77,7 @@ class DataAugmentation():
         # [combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.rotations = list(product(rotationsX, rotationsY))
         self.datasetFolder = datasetFolder
+        self.numJobs = numJobs
         self.medianBlurKernelSize = medianBlurKernelSize
         self.gaussianBlurKernelSize = gaussianBlurKernelSize
         self.useBodyPixModel = useBodyPixModel
@@ -85,7 +85,10 @@ class DataAugmentation():
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
 
-        min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
+        # Get the list of videos
+        self.listOfVideos = getListVideos(self.datasetFolder)
+
+        # min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
 
     def __str__(self) -> str:
         """__str__ returns a string representation of the DataAugmentation Object when used in print statements
@@ -116,16 +119,15 @@ class DataAugmentation():
             list -- list of output paths of all the augmented videos
         """
         # Get the list of all the videos within the dataset folder
-        listOfVideos = getListVideos(self.datasetFolder)
-        self.pbarAllVideos = tqdm(total=len(listOfVideos))
+        self.pbarAllVideos = tqdm(total=len(self.listOfVideos))
         self.pbarAllVideos.set_description("Total Videos Done")
         self.pbarAllVideosRotations = tqdm(
-            total=len(listOfVideos) * len(self.rotations))
+            total=len(self.listOfVideos) * len(self.rotations))
         self.pbarAllVideosRotations.set_description(
             "Total Combinations Done")
         # Start applying data augmentation to each video while appending the augmented video path to a new list
         newJSONs = []
-        for video in listOfVideos:
+        for video in self.listOfVideos:
             for rotation in self.rotations:
                 newJSONs.append(self.augmentVideo(video, rotation=rotation))
                 self.pbarAllVideosRotations.update(1)
@@ -159,8 +161,8 @@ class DataAugmentation():
             camera=1)
 
         rotationName = f"rotation({rotation[0]},{rotation[1]})"
-        fullRotationName = f"{rotationName}_autoTranslate({self.autoTranslate})_pointForAutoTranslate({self.pointForAutoTranslate[0]},{self.pointForAutoTranslate[1]})"
-        currJSONPath = f'./{self.outputPath}/{fullRotationName}_{videoName}.json'
+        fullRotationName = f"{rotationName}-autoTranslate({self.autoTranslate})-pointForAutoTranslate({self.pointForAutoTranslate[0]},{self.pointForAutoTranslate[1]})"
+        currJSONPath = f'{self.outputPath}/{fullRotationName}-{videoName}.json'
 
         # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
         allImages = []
@@ -179,17 +181,25 @@ class DataAugmentation():
         # Close the video
         playbackDepth.close()
         playbackImage.release()
-        
+        print("---------")
+        print('1')
+        print("---------")
         # Parallelize the frame augmentation process to speed up the process
         augmentedFrames = p_map(
             partial(
-                self.augmentFrame, 
+                augmentFrame,
                 rotation=rotation, 
                 cameraIntrinsicMatrix=intrinsicCameraMatrix, 
-                distortionCoefficients=distortionCoefficients
+                distortionCoefficients=distortionCoefficients,
+                useBodyPixModel=self.useBodyPixModel, 
+                medianBlurKernelSize=self.medianBlurKernelSize, 
+                gaussianBlurKernelSize=self.gaussianBlurKernelSize, 
+                autoTranslate=self.autoTranslate, 
+                pointForAutoTranslate=self.pointForAutoTranslate
             ),
             allImages, 
             allCaptures,
+            num_cpus=self.numJobs,
             desc=f"{user}-{rotationName}"
         )
         
@@ -229,59 +239,6 @@ class DataAugmentation():
 
         return currJSONPath
 
-    def augmentFrame(self, image, capture, rotation, cameraIntrinsicMatrix, distortionCoeffients) -> np.ndarray:
-        """augmentFrame rotates the current frame by the given rotation
-        Arguments:
-            image {np.ndarray} -- RGB image of the current frame
-            capture {pyk4a.capture} -- A capture object containing the depth data for the current frame
-            rotation {list} -- list of tuple containing X and Y rotation to apply to the video
-            cameraIntrinsicMatrix {np.ndarray} -- 3x3 matrix explaining focal length, principal point, and aspect ratio of the camera
-            distortionCoeffients {np.ndarray} -- 1x8 matrix explaining the distortion of the camera
-
-        Returns:
-            np.ndarray -- RGB projected image of the current frame given the rotation
-        """
-
-        # Clean the depth map and divide by 1000 to convert millimeters to meters
-        depth = cleanDepthMap(capture.transformed_depth, image, self.useBodyPixModel,
-                              self.medianBlurKernelSize, self.gaussianBlurKernelSize)
-        depthData = depth / 1000
-
-        # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
-        # The size of this matrix will be (image height x image width, 3) where the 3 is for the u, v, and depth
-        pixels = createPixelCoordinateMatrix(depthData)
-
-        # Define angle of rotation around x and y (not z)
-        # For some reason, the x rotation is actually the y-rotation based off experiments. Guru believes it has to do with how the u and v coordinates are defined
-        rotation_x = active_matrix_from_angle(0, np.deg2rad(rotation[1]))
-        rotation_y = active_matrix_from_angle(1, np.deg2rad(rotation[0]))
-
-        # Take the rotation matrix and use Rodrigues's formula. Needed for cv2.projectPoints
-        rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
-
-        # The translation is set to 0 always. Autotranslation is done after cv2.projectPoints
-        translation = np.array([0, 0, 0], dtype=np.float64)
-
-        # Calculate the world coordinates of the pixels
-        worldGrid = calculateWorldCoordinates(pixels, cameraIntrinsicMatrix)
-
-        # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
-        projectedImage, _ = cv2.projectPoints(
-            worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoeffients)
-        projectedImage = projectedImage[:, 0, :]
-        # If autoTranslate is true, then we should apply it to the image
-        if self.autoTranslate:
-            Tx, Ty = solveForTxTy(
-                self.pointForAutoTranslate, rotation[1], rotation[0], depthData, cameraIntrinsicMatrix)
-            projectedImage[:, 0] += Tx
-            projectedImage[:, 1] += Ty
-
-        # Create the new RGB image
-        originalPixels = pixels[:, :-1]
-        newImage = createNewImage(projectedImage, originalPixels, image)
-
-        return newImage
-
     def calculateMinRotationsPossible(self) -> tuple:
         """calculateMinRotationsPossible returns the minimum rotations possible in the 2 main axes (going up and down)
         For more information on how the math works out, check the Sign-Recognition channel or ask Guru
@@ -290,11 +247,9 @@ class DataAugmentation():
             tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
         """
         # Get a list of the videos
-        listOfVideos = self.getListOfVideos()
 
         # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
-        poseFeatures, cameraIntrinsicMatrices = get3DMediapipeCoordinates(
-            listOfVideos)
+        poseFeatures, cameraIntrinsicMatrices = p_map(get3DMediapipeCoordinates, self.listOfVideos, num_cpus=self.numJobs)
 
         # Initial minimum values set to infinity
         min_v_0 = np.inf
