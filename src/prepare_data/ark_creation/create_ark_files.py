@@ -33,20 +33,8 @@ def _select_features_func(features_filepath, verbose, features_config, is_select
     ark_filepath = os.path.join(ark_dir, ark_filename)
     title = ark_filename.replace('.ark', "")
 
-    if 'alphapose' in features_filename:
-        features_df = feature_extraction_alphapose(
-            features_filepath, features_config['selected_features'], scale=10, drop_na=True)
-
-    elif features_extension == 'json':
-        features_df = feature_extraction_kinect(
-            features_filepath, features_config['selected_features'], scale=10, drop_na=True)
-    elif is_select_features:
-        features_df = select_features(features_filepath, features_config['selected_features'], center_on_nose=True, scale=100, square=True,
-                                      drop_na=True, do_interpolate=True, use_optical_flow=use_optical_flow)
-
-    else:
-        features_df = interpolate_feature_data(
-            features_filepath, features_config['selected_features'], center_on_face=False, is_2d=True, scale=10, drop_na=True)
+    features_df = select_features(features_filepath, features_config['selected_features'], center_on_nose=True, scale=100, square=True,
+                                    drop_na=True, do_interpolate=True, use_optical_flow=use_optical_flow)
 
     return features_df, ark_filepath, title
 
@@ -122,7 +110,7 @@ def create_ark_files(features_config: dict, users: list, num_jobs: int, phrase_l
             ),
             features_filepaths,
             num_cpus=num_jobs,
-            desc="Generating ark/htk using select_features data model"
+            desc="Generating ark using select_features"
         )
         pbar = tqdm(total=len(list(features_df_list)), desc="Writing ark files to disk")
         for features_df, ark_filepath, title in features_df_list:

@@ -31,7 +31,7 @@ def prepare_data(features_config: dict, users: list, num_jobs: int, phrase_len:l
     print('.ark files created')
 
     print('Creating .htk files')
-    create_htk_files()
+    create_htk_files(num_jobs=num_jobs)
     print('.htk files created')
 
     print('Creating .txt files')

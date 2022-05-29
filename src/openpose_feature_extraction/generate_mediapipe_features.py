@@ -63,12 +63,14 @@ def extract_mediapipe_features(frames, save_filepath, normalize_xy=True) -> None
                         feature_location[index][feature_num] = [
                             min(math.floor(curr_point.x * image_width), image_width - 1),
                             min(math.floor(curr_point.y * image_height), image_height - 1),
-                            curr_point.z
                         ]
                     feature_num += 1
         features[curr_frame] = curr_frame_features
         curr_frame += 1
     holistic.close()
+  
+    if save_filepath == 'None' or save_filepath == False or save_filepath.lower() == 'n':
+        return features
 
     if save_filepath == None:
         return features

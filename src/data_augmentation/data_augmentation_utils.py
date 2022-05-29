@@ -6,9 +6,11 @@ import sys
 import numpy as np
 import tensorflow as tf
 
+from pytransform3d.rotations import active_matrix_from_angle
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 from tf_bodypix.api import download_model, load_model, BodyPixModelPaths
 from pyk4a import PyK4APlayback
+from tqdm import tqdm
 
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
 sys.path.append(os.path.abspath('../'))
@@ -108,6 +110,7 @@ def calculateWorldCoordinates(threeDPoints, cameraIntrinsicMatrix) -> np.ndarray
     """
     depthData = np.copy(threeDPoints[:, -1]).reshape(-1, 1)
     threeDPoints[:, -1] = 1
+
     worldGrid = np.linalg.inv(cameraIntrinsicMatrix) @ threeDPoints.transpose()
     worldGrid = worldGrid.T * depthData
 
@@ -229,7 +232,7 @@ def createPixelCoordinateMatrix(depthData) -> np.ndarray:
     return pixels
 
 
-def get3DMediapipeCoordinates(videos) -> list:
+def get3DMediapipeCoordinates(video) -> list:
     """get3DMediapipeCoordinates get the mediapipe coordinates (non-normalized) and their actual depth according to the Azure Kinect Depth Camera
 
     Arguments:
@@ -238,10 +241,8 @@ def get3DMediapipeCoordinates(videos) -> list:
     Returns:
         list -- all the pose points (represented by a Nx3 NumPy Array) for each 
     """
-    allVideos = []
-    allCameraIntrinsicMatrices = []
-
     # Iterate over the considered videos
+<<<<<<< HEAD
     for video in videos:
         # Open the depth and the color videos
         playbackImage = cv2.VideoCapture(video)
@@ -300,6 +301,65 @@ def get3DMediapipeCoordinates(videos) -> list:
         allCameraIntrinsicMatrices.append(cameraIntrinsicMatrix)
 
     return allVideos, allCameraIntrinsicMatrices
+=======
+    # Open the depth and the color videos
+    playbackImage = cv2.VideoCapture(video)
+    playbackDepth = PyK4APlayback(video)
+    playbackDepth.open()
+
+    cameraIntrinsicMatrix = playbackDepth.calibration.get_camera_matrix(
+        camera=1)
+
+    currVideo = []
+
+    while playbackImage.isOpened():
+        # Get color image and the depth image for each frame
+        ret, frame = playbackImage.read()
+        if not ret:
+            break
+        capture = playbackDepth.get_next_capture()
+        depth = capture.transformed_depth
+
+        currFrame = []
+
+        # Get the openpose data in NumPy arrays
+        currMediapipeFeatures = extract_mediapipe_features(
+            [frame], normalize_xy=False, save_filepath=False)
+        hand0Features = np.array(
+            list(currMediapipeFeatures[0]['landmarks'][0].values()))
+        hand1Features = np.array(
+            list(currMediapipeFeatures[0]['landmarks'][1].values()))
+        poseFeatures = np.array(
+            list(currMediapipeFeatures[0]['pose'].values()))
+
+        # Only add to currFrame if the hand and body are detected
+        if len(hand0Features) > 0:
+            currFrame.append(hand0Features)
+        if len(hand1Features) > 0:
+            currFrame.append(hand1Features)
+        if len(poseFeatures) > 0:
+            currFrame.append(poseFeatures)
+
+        if len(currFrame) < 1:
+            continue
+        
+        currFrame = np.vstack(currFrame)
+
+        # Get the depth of each point, convert depth values to meters, and add the depth values back to currVideoFrames
+        depthValues = np.apply_along_axis(lambda point: getNonZeroDepth(
+            int(point[1]), int(point[0]), depth), 1, currFrame).reshape(-1, 1)
+        depthValues = depthValues / 1000
+        currFrame = np.hstack((currFrame, depthValues))
+
+        # Get the world coordinates
+        currFrame = calculateWorldCoordinates(
+            currFrame, cameraIntrinsicMatrix)
+
+        # Add this to the list containing all the frames of the current video
+        currVideo.append(currFrame)
+
+    return currVideo, cameraIntrinsicMatrix
+>>>>>>> cf0cca95b8f641b6c2bd808cdf500d2e3280d5ae
 
 
 def getNonZeroDepth(row, col, depth) -> float:
@@ -321,13 +381,12 @@ def getNonZeroDepth(row, col, depth) -> float:
 
     # Initial values
     percentNonZero = 0
-    radius = 1
-
+    radius = 0
     # We want the area considered to have a majority of non-zero depth values
     # We keep increasing the radius until we have a majority of non-zero depth values
-    while percentNonZero > 0.5 and radius < depth.shape[0] and radius < depth.shape[1]:
+    while percentNonZero < 0.5 and radius < depth.shape[0] and radius < depth.shape[1]:
         minRow = row - radius if row - radius > 0 else 0
-        maxRow = col + radius if col + \
+        maxRow = row + radius if row + \
             radius < depth.shape[0] else depth.shape[0]
         minCol = col - radius if col - radius > 0 else 0
         maxCol = col + radius if col + \
@@ -335,7 +394,9 @@ def getNonZeroDepth(row, col, depth) -> float:
 
         surroundingPoints = depth[minRow:maxRow, minCol:maxCol]
         percentNonZero = np.count_nonzero(
-            surroundingPoints) / ((maxRow - minRow) * (maxCol - minCol))
+            surroundingPoints) / ((maxRow - minRow + 1) * (maxCol - minCol + 1))
+
+        radius += 1
 
     # Consider the points where the depth is not zero
     nonZeroPoints = surroundingPoints[surroundingPoints != 0]
@@ -434,3 +495,57 @@ def rotation_u_3840(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
     theta_x_degrees = np.rad2deg(theta_x_radians)
 
     return theta_x_degrees
+
+def augmentFrame(image, capture, rotation, cameraIntrinsicMatrix, distortionCoeffients, useBodyPixModel, medianBlurKernelSize, gaussianBlurKernelSize, autoTranslate, pointForAutoTranslate) -> np.ndarray:
+    """augmentFrame rotates the current frame by the given rotation
+    Arguments:
+        image {np.ndarray} -- RGB image of the current frame
+        capture {pyk4a.capture} -- A capture object containing the depth data for the current frame
+        rotation {list} -- list of tuple containing X and Y rotation to apply to the video
+        cameraIntrinsicMatrix {np.ndarray} -- 3x3 matrix explaining focal length, principal point, and aspect ratio of the camera
+        distortionCoeffients {np.ndarray} -- 1x8 matrix explaining the distortion of the camera
+
+    Returns:
+        np.ndarray -- RGB projected image of the current frame given the rotation
+    """
+    # Clean the depth map and divide by 1000 to convert millimeters to meters
+    depth = cleanDepthMap(capture.transformed_depth, image, useBodyPixModel,
+                            medianBlurKernelSize, gaussianBlurKernelSize)
+    depthData = depth / 1000
+
+    # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
+    # The size of this matrix will be (image height x image width, 3) where the 3 is for the u, v, and depth
+    pixels = createPixelCoordinateMatrix(depthData)
+
+    # Define angle of rotation around x and y (not z)
+    # For some reason, the x rotation is actually the y-rotation based off experiments. Guru believes it has to do with how the u and v coordinates are defined
+    rotation_x = active_matrix_from_angle(0, np.deg2rad(rotation[1]))
+    rotation_y = active_matrix_from_angle(1, np.deg2rad(rotation[0]))
+
+    # Take the rotation matrix and use Rodrigues's formula. Needed for cv2.projectPoints
+    rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
+
+    # The translation is set to 0 always. Autotranslation is done after cv2.projectPoints
+    translation = np.array([0, 0, 0], dtype=np.float64)
+
+    # Calculate the world coordinates of the pixels
+    worldGrid = calculateWorldCoordinates(pixels, cameraIntrinsicMatrix)
+
+    # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
+    projectedImage, _ = cv2.projectPoints(
+        worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoeffients)
+    projectedImage = projectedImage[:, 0, :]
+
+    # If autoTranslate is true, then we should apply it to the image
+    if autoTranslate:
+        Tx, Ty = solveForTxTy(
+            pointForAutoTranslate, rotation[1], rotation[0], depthData, cameraIntrinsicMatrix)
+        projectedImage[:, 0] += Tx
+        projectedImage[:, 1] += Ty
+
+    # Create the new RGB image
+    originalPixels = pixels[:, :-1]
+    newImage = createNewImage(projectedImage, originalPixels, image)
+
+    return newImage
+
