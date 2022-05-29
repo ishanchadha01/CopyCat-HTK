@@ -47,7 +47,7 @@ class DataAugmentation():
             raise NameError(f'Dataset folder {datasetFolder} does not exist')
 
         if not os.path.exists(outputPath):
-            raise NameError(f'Output path {outputPath} does not exist')
+            os.makedirs(outputPath)
 
         # If the x or y angle is negative or greater than 90, raise an error
         for x, y in zip(rotationsX, rotationsY):
@@ -77,6 +77,7 @@ class DataAugmentation():
         self.outputPath = outputPath
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
+        self.listOfVideos = getListVideos(datasetFolder)
 
         min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
 
@@ -109,16 +110,15 @@ class DataAugmentation():
             list -- list of output paths of all the augmented videos
         """
         # Get the list of all the videos within the dataset folder
-        listOfVideos = getListVideos(self.datasetFolder)
-        self.pbarAllVideos = tqdm(total=len(listOfVideos))
+        self.pbarAllVideos = tqdm(total=len(self.listOfVideos))
         self.pbarAllVideos.set_description("Total Videos Done")
         self.pbarAllVideosRotations = tqdm(
-            total=len(listOfVideos) * len(self.rotations))
+            total=len(self.listOfVideos) * len(self.rotations))
         self.pbarAllVideosRotations.set_description(
             "Total Combinations Done")
         # Start applying data augmentation to each video while appending the augmented video path to a new list
         newJSONs = []
-        for video in listOfVideos:
+        for video in self.listOfVideos:
             for rotation in self.rotations:
                 newJSONs.append(self.augmentVideo(video, rotation=rotation))
                 self.pbarAllVideosRotations.update(1)
@@ -249,12 +249,9 @@ class DataAugmentation():
         Returns:
             tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
         """
-        # Get a list of the videos
-        listOfVideos = self.getListOfVideos()
-
         # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
         poseFeatures, cameraIntrinsicMatrices = get3DMediapipeCoordinates(
-            listOfVideos)
+            self.listOfVideos)
 
         # Initial minimum values set to infinity
         min_v_0 = np.inf

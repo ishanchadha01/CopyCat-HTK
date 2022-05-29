@@ -265,7 +265,7 @@ def get3DMediapipeCoordinates(videos) -> list:
 
             # Get the openpose data in NumPy arrays
             currMediapipeFeatures = extract_mediapipe_features(
-                [frame], normalize_xy=False)
+                [frame], normalize_xy=False, save_filepath=None)
             hand0Features = np.array(
                 list(currMediapipeFeatures[0]['landmarks'][0].values()))
             hand1Features = np.array(

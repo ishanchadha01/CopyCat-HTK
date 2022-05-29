@@ -302,7 +302,8 @@ def main():
 
     args = parser.parse_args()
     ########################################################################################
-    
+    features_config = load_json('configs/features.json')
+
     #if args.users: args.users = [user.capitalize() for user in args.users]
     
     # SECTION TO ADD DATA AUG TO PIPELINE
@@ -312,10 +313,10 @@ def main():
             rotationsY = [int(y) for y in args.rotationsY.split('_')]
         except:
             raise ValueError('rotationsX and rotationsY must be integers separated by "_"')
-        # @Ishan specify the dataset folder and output path of where all the augmented videos should be saved
+
         # The Data augmentation object does all the bounds checking, so you dont have to worry about that
-        da = DataAugmentation(datasetFolder='INSERT', outputPath='INSERT', rotationsX=rotationsX, rotationsY=rotationsY, useBodyPixModel=args.bodypix_model, pointForAutoTranslate=(args.pointForAutoTranslateX, args.pointForAutoTranslateY), autoTranslate=args.autoTranslate)
-        # @Ishan listOfVideos is a list of strings of the locations of all the augmented videos
+        da = DataAugmentation(datasetFolder=features_config['raw_videos_dir'], outputPath=f"{features_config['features_dir']}/augmented", rotationsX=rotationsX, rotationsY=rotationsY, useBodyPixModel=args.bodypix_model, pointForAutoTranslate=(args.pointForAutoTranslateX, args.pointForAutoTranslateY), autoTranslate=args.autoTranslate)
+
         listOfVideos = da.createDataAugmentedVideos()
         pass
     
@@ -328,7 +329,6 @@ def main():
     cvm = args.cross_val_method
     cross_val_method, use_groups = cross_val_methods[args.cross_val_method]
 
-    features_config = load_json('configs/features.json')
     all_results = {'features': features_config['selected_features'],
                    'average': {}}
                    

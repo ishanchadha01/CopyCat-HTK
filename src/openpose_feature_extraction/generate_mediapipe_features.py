@@ -70,6 +70,9 @@ def extract_mediapipe_features(frames, save_filepath, normalize_xy=True) -> None
         curr_frame += 1
     holistic.close()
 
+    if save_filepath == None:
+        return features
+
     with open(save_filepath, "w") as outfile:
         json.dump(features, outfile, indent=4)
         
