@@ -47,9 +47,7 @@ class DataAugmentation():
             raise NameError(f'Dataset folder {datasetFolder} does not exist')
 
         if not os.path.exists(outputPath):
-<<<<<<< HEAD
             os.makedirs(outputPath)
-=======
             print("Output path does not exist. Creating output path...")
             os.makedirs(outputPath)
     
@@ -57,7 +55,6 @@ class DataAugmentation():
         if os.path.exists(outputPath):
             os.system(f'rm -rf {outputPath}')
         os.makedirs(outputPath)
->>>>>>> cf0cca95b8f641b6c2bd808cdf500d2e3280d5ae
 
         # If the x or y angle is negative or greater than 90, raise an error
         for x, y in zip(rotationsX, rotationsY):
@@ -251,16 +248,13 @@ class DataAugmentation():
         Returns:
             tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
         """
-<<<<<<< HEAD
         # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
         poseFeatures, cameraIntrinsicMatrices = get3DMediapipeCoordinates(
             self.listOfVideos)
-=======
         # Get a list of the videos
 
         # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
         poseFeatures, cameraIntrinsicMatrices = p_map(get3DMediapipeCoordinates, self.listOfVideos, num_cpus=self.numJobs)
->>>>>>> cf0cca95b8f641b6c2bd808cdf500d2e3280d5ae
 
         # Initial minimum values set to infinity
         min_v_0 = np.inf
