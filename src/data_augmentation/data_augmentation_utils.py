@@ -242,7 +242,6 @@ def get3DMediapipeCoordinates(video) -> list:
         list -- all the pose points (represented by a Nx3 NumPy Array) for each 
     """
     # Iterate over the considered videos
-<<<<<<< HEAD
     for video in videos:
         # Open the depth and the color videos
         playbackImage = cv2.VideoCapture(video)
@@ -301,7 +300,7 @@ def get3DMediapipeCoordinates(video) -> list:
         allCameraIntrinsicMatrices.append(cameraIntrinsicMatrix)
 
     return allVideos, allCameraIntrinsicMatrices
-=======
+
     # Open the depth and the color videos
     playbackImage = cv2.VideoCapture(video)
     playbackDepth = PyK4APlayback(video)
@@ -359,7 +358,6 @@ def get3DMediapipeCoordinates(video) -> list:
         currVideo.append(currFrame)
 
     return currVideo, cameraIntrinsicMatrix
->>>>>>> cf0cca95b8f641b6c2bd808cdf500d2e3280d5ae
 
 
 def getNonZeroDepth(row, col, depth) -> float:
