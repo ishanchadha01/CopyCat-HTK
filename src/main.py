@@ -292,7 +292,7 @@ def main():
     6) autoTranslate=True
     7) pointForAutoTranslate=(3840 // 2, 2160 //2)
     '''
-    parser.add_argument('--data_augmentation', type=bool, default=False)
+    parser.add_argument('--data_augmentation', action='store_true')
     parser.add_argument('--rotationsX', type=str, default="-10_-5_0_5_10")
     parser.add_argument('--rotationsY', type=str, default="-10_-5_0_5_10")
     parser.add_argument('--bodypix_model', type=int, default=1)

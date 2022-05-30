@@ -90,7 +90,7 @@ class DataAugmentation():
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
 
-        # min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
+        min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
 
     def __str__(self) -> str:
         """__str__ returns a string representation of the DataAugmentation Object when used in print statements
@@ -248,11 +248,6 @@ class DataAugmentation():
         Returns:
             tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
         """
-        # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
-        poseFeatures, cameraIntrinsicMatrices = get3DMediapipeCoordinates(
-            self.listOfVideos)
-        # Get a list of the videos
-
         # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
         poseFeatures, cameraIntrinsicMatrices = p_map(get3DMediapipeCoordinates, self.listOfVideos, num_cpus=self.numJobs)
 

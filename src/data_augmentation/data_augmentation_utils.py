@@ -241,67 +241,8 @@ def get3DMediapipeCoordinates(video) -> list:
     Returns:
         list -- all the pose points (represented by a Nx3 NumPy Array) for each 
     """
-    # Iterate over the considered videos
-    for video in videos:
-        # Open the depth and the color videos
-        playbackImage = cv2.VideoCapture(video)
-        playbackDepth = PyK4APlayback(video)
-        playbackDepth.open()
-
-        cameraIntrinsicMatrix = playbackDepth.calibration.get_camera_matrix(
-            camera=1)
-
-        currVideo = []
-
-        while playbackImage.isOpened():
-            # Get color image and the depth image for each frame
-            ret, frame = playbackImage.read()
-            if not ret:
-                break
-            capture = playbackDepth.get_next_capture()
-            depth = capture.transformed_depth
-
-            currFrame = []
-
-            # Get the openpose data in NumPy arrays
-            currMediapipeFeatures = extract_mediapipe_features(
-                [frame], normalize_xy=False, save_filepath=None)
-            hand0Features = np.array(
-                list(currMediapipeFeatures[0]['landmarks'][0].values()))
-            hand1Features = np.array(
-                list(currMediapipeFeatures[0]['landmarks'][1].values()))
-            poseFeatures = np.array(
-                list(currMediapipeFeatures[0]['pose'].values()))
-
-            # Only add to currFrame if the hand and body are detected
-            if len(hand0Features) > 0:
-                currFrame.append(hand0Features)
-            if len(hand1Features) > 0:
-                currFrame.append(hand1Features)
-            if len(poseFeatures) > 0:
-                currFrame.append(poseFeatures)
-
-            currFrame = np.vstack(currFrame)
-
-            # Get the depth of each point, convert depth values to meters, and add the depth values back to currVideoFrames
-            depthValues = np.apply_along_axis(lambda point: getNonZeroDepth(
-                int(point[0]), int(point[1]), depth), 1, currFrame).reshape(-1, 1)
-            depthValues = depthValues / 1000
-            currFrame = np.hstack((currFrame, depthValues))
-
-            # Get the world coordinates
-            currFrame = calculateWorldCoordinates(
-                currFrame, cameraIntrinsicMatrix)
-
-            # Add this to the list containing all the frames of the current video
-            currVideo.append(currFrame)
-
-        allVideos.append(currVideo)
-        allCameraIntrinsicMatrices.append(cameraIntrinsicMatrix)
-
-    return allVideos, allCameraIntrinsicMatrices
-
     # Open the depth and the color videos
+    print(video)
     playbackImage = cv2.VideoCapture(video)
     playbackDepth = PyK4APlayback(video)
     playbackDepth.open()

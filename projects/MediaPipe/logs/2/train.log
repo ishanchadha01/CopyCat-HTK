@@ -28,5 +28,5 @@ Stream 1
       46.63   205.89   131.44   923.63   104.09   970.23   115.82  1054.11   112.26   982.01    96.66   981.61 ...
  Variance Vector 
      247.74  4245.92  6497.11 139583.88 10064.25 823012.12 18459.94 1192255.00 18230.84 1213674.25 13006.05 1111360.00 ...
-HRest -A -i 60 -C configs/hrest.conf -v 0.1 -I all_labels.mlf -M models/2/hmm1 -S lists/2/train.data models/2/hmm0/black 
-HRest -A -i 60 -C configs/hrest.conf -v 0.1 -I all_labels.mlf -M models/2/hmm1 -S lists/2/train.data models/2/hmm0/chair 
+HRest -A -i 60 -C configs/hrest.conf -v 0.1 -I all_labels.mlf -M models/2/hmm1 -S lists/2/train.data models/2/hmm0/box 
+HRest -A -i 60 -C configs/hrest.conf -v 0.1 -I all_labels.mlf -M models/2/hmm1 -S lists/2/train.data models/2/hmm0/below 
