@@ -126,8 +126,9 @@ def getListVideos(datasetFolder) -> list:
     # Scan for every .mkv file in the dataset folder (.mkv files have depth, ir, and RGB data and are used by the Azure Kinect SDK)
     result = []
     for folder in os.walk(datasetFolder):
-        for video in glob.glob(os.path.join(folder[0], '*.mkv')):
-            result.append(video)
+        for video in glob.glob(os.path.join(folder[0], '*.npz')):
+            # Remove the extension from the video path
+            result.append(video[:-4])
     return result
 
 
@@ -232,6 +233,23 @@ def createPixelCoordinateMatrix(depthData) -> np.ndarray:
     return pixels
 
 
+def getColorFrames(video_folder):
+    videoFrames = np.load(f"{video_folder}.npz")
+    return sorted([frame for frame in videoFrames.files if "Color" in frame])
+
+def getDepthFrames(video_folder):
+    videoFrames = np.load(f"{video_folder}.npz")
+    return sorted([frame for frame in videoFrames.files if "Depth" in frame])
+
+
+def getCameraIntrinsicMatrix(video_folder):
+    return np.load(f'{video_folder}.npz')['cameraIntrinsicMatrix']
+
+
+def getDistortionCoefficients(video_folder):
+    return np.load(f'{video_folder}.npz')['distortionCoefficients']
+
+
 def get3DMediapipeCoordinates(video) -> list:
     """get3DMediapipeCoordinates get the mediapipe coordinates (non-normalized) and their actual depth according to the Azure Kinect Depth Camera
 
@@ -242,24 +260,18 @@ def get3DMediapipeCoordinates(video) -> list:
         list -- all the pose points (represented by a Nx3 NumPy Array) for each 
     """
     # Open the depth and the color videos
-    print(video)
-    playbackImage = cv2.VideoCapture(video)
-    playbackDepth = PyK4APlayback(video)
-    playbackDepth.open()
-
-    cameraIntrinsicMatrix = playbackDepth.calibration.get_camera_matrix(
-        camera=1)
+    cameraIntrinsicMatrix = getCameraIntrinsicMatrix(video)
+    colorFrames = getColorFrames(video)
+    depthFrames = getDepthFrames(video)
+    videoFrames = np.load(f"{video}.npz")
 
     currVideo = []
 
-    while playbackImage.isOpened():
-        # Get color image and the depth image for each frame
-        ret, frame = playbackImage.read()
-        if not ret:
-            break
-        capture = playbackDepth.get_next_capture()
-        depth = capture.transformed_depth
-
+    for frame, depth in zip(colorFrames, depthFrames):
+        
+        frame = videoFrames[frame]
+        depth = videoFrames[depth]
+        
         currFrame = []
 
         # Get the openpose data in NumPy arrays
@@ -282,12 +294,13 @@ def get3DMediapipeCoordinates(video) -> list:
 
         if len(currFrame) < 1:
             continue
-        
+
         currFrame = np.vstack(currFrame)
 
-        # Get the depth of each point, convert depth values to meters, and add the depth values back to currVideoFrames
+        # Get the depth of each point, convert depth values to meters, and add the depth values back to currVideoFrames++
+        # TODO: Find why the points are negative
         depthValues = np.apply_along_axis(lambda point: getNonZeroDepth(
-            int(point[1]), int(point[0]), depth), 1, currFrame).reshape(-1, 1)
+            abs(int(point[1])), abs(int(point[0])), depth), 1, currFrame).reshape(-1, 1)
         depthValues = depthValues / 1000
         currFrame = np.hstack((currFrame, depthValues))
 
@@ -298,7 +311,9 @@ def get3DMediapipeCoordinates(video) -> list:
         # Add this to the list containing all the frames of the current video
         currVideo.append(currFrame)
 
-    return currVideo, cameraIntrinsicMatrix
+    currVideo = np.vstack(currVideo)
+
+    return currVideo
 
 
 def getNonZeroDepth(row, col, depth) -> float:
@@ -334,6 +349,7 @@ def getNonZeroDepth(row, col, depth) -> float:
         surroundingPoints = depth[minRow:maxRow, minCol:maxCol]
         percentNonZero = np.count_nonzero(
             surroundingPoints) / ((maxRow - minRow + 1) * (maxCol - minCol + 1))
+
 
         radius += 1
 
@@ -435,11 +451,12 @@ def rotation_u_3840(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
 
     return theta_x_degrees
 
-def augmentFrame(image, capture, rotation, cameraIntrinsicMatrix, distortionCoeffients, useBodyPixModel, medianBlurKernelSize, gaussianBlurKernelSize, autoTranslate, pointForAutoTranslate) -> np.ndarray:
+
+def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoefficients, useBodyPixModel, medianBlurKernelSize, gaussianBlurKernelSize, autoTranslate, pointForAutoTranslate) -> np.ndarray:
     """augmentFrame rotates the current frame by the given rotation
     Arguments:
         image {np.ndarray} -- RGB image of the current frame
-        capture {pyk4a.capture} -- A capture object containing the depth data for the current frame
+        depth {nd.ndarray} -- A depth map containing the depth data for the current frame
         rotation {list} -- list of tuple containing X and Y rotation to apply to the video
         cameraIntrinsicMatrix {np.ndarray} -- 3x3 matrix explaining focal length, principal point, and aspect ratio of the camera
         distortionCoeffients {np.ndarray} -- 1x8 matrix explaining the distortion of the camera
@@ -448,8 +465,8 @@ def augmentFrame(image, capture, rotation, cameraIntrinsicMatrix, distortionCoef
         np.ndarray -- RGB projected image of the current frame given the rotation
     """
     # Clean the depth map and divide by 1000 to convert millimeters to meters
-    depth = cleanDepthMap(capture.transformed_depth, image, useBodyPixModel,
-                            medianBlurKernelSize, gaussianBlurKernelSize)
+    depth = cleanDepthMap(depth, image, useBodyPixModel,
+                          medianBlurKernelSize, gaussianBlurKernelSize)
     depthData = depth / 1000
 
     # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
@@ -472,7 +489,7 @@ def augmentFrame(image, capture, rotation, cameraIntrinsicMatrix, distortionCoef
 
     # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
     projectedImage, _ = cv2.projectPoints(
-        worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoeffients)
+        worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoefficients)
     projectedImage = projectedImage[:, 0, :]
 
     # If autoTranslate is true, then we should apply it to the image
@@ -487,4 +504,3 @@ def augmentFrame(image, capture, rotation, cameraIntrinsicMatrix, distortionCoef
     newImage = createNewImage(projectedImage, originalPixels, image)
 
     return newImage
-

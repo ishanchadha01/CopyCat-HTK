@@ -241,7 +241,7 @@ def main():
                                                   ])
     parser.add_argument('--n_splits', type=int, default=10)
     parser.add_argument('--cv_parallel', action='store_true')
-    parser.add_argument('--parallel_jobs', default=4, type=int)
+    parser.add_argument('--parallel_jobs', default=os.cpu_count(), type=int)
     parser.add_argument('--test_size', type=float, default=0.1)
     parser.add_argument('--phrase_len', type=int, default=0)
     parser.add_argument('--random_state', type=int, default=42) #The answer to life, the universe and everything
@@ -293,8 +293,8 @@ def main():
     7) pointForAutoTranslate=(3840 // 2, 2160 //2)
     '''
     parser.add_argument('--data_augmentation', action='store_true')
-    parser.add_argument('--rotationsX', type=str, default="-10_-5_0_5_10")
-    parser.add_argument('--rotationsY', type=str, default="-10_-5_0_5_10")
+    parser.add_argument('--rotationsX', type=str, default="-5_0_5")
+    parser.add_argument('--rotationsY', type=str, default="-5_0_5")
     parser.add_argument('--bodypix_model', type=int, default=1)
     parser.add_argument('--autoTranslate', type=bool, default=True)
     parser.add_argument('--pointForAutoTranslateX', type=int, default=3840 // 2)

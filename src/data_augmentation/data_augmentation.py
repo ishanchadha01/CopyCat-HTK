@@ -75,6 +75,9 @@ class DataAugmentation():
             raise ValueError(
                 'Point for auto translate must be within the bounds of the image')
 
+        # Initializing Mediapipe (so you don't get repeating log messages saying "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")
+        extract_mediapipe_features(frames=None, save_filepath=None)
+
         # [combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.rotations = list(product(rotationsX, rotationsY))
         self.datasetFolder = datasetFolder
@@ -85,12 +88,11 @@ class DataAugmentation():
         self.outputPath = outputPath
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
-        self.listOfVideos = getListVideos(datasetFolder)
 
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
 
-        min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
+        # min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
 
     def __str__(self) -> str:
         """__str__ returns a string representation of the DataAugmentation Object when used in print statements
@@ -149,43 +151,25 @@ class DataAugmentation():
         """
         # Get the video name by getting the last str when splitting on '/'
         videoName = video.split('/')[-1][:-4]
-        user = videoName.split('_')[1]
-
-        # Open the videos. Using OpenCV to get the RGB values and using PyK4A to get the depth maps.
-        playbackDepth = PyK4APlayback(video)
-        playbackDepth.open()
-        playbackImage = cv2.VideoCapture(video)
+        user = video.split('/')[-2].split('_')[1]
 
         # Extract the camera calibrations used in cv2.projectPoints
-        intrinsicCameraMatrix = playbackDepth.calibration.get_camera_matrix(
-            camera=1)
-        distortionCoefficients = playbackDepth.calibration.get_distortion_coefficients(
-            camera=1)
+        intrinsicCameraMatrix = getCameraIntrinsicMatrix(video)
+        distortionCoefficients = getDistortionCoefficients(video)
 
         rotationName = f"rotation({rotation[0]},{rotation[1]})"
         fullRotationName = f"{rotationName}-autoTranslate({self.autoTranslate})-pointForAutoTranslate({self.pointForAutoTranslate[0]},{self.pointForAutoTranslate[1]})"
-        currJSONPath = f'{self.outputPath}/{fullRotationName}-{videoName}.json'
+        currJSONPath = f'{self.outputPath}/{fullRotationName}-{user}-{videoName}.json'
 
         # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
-        allImages = []
-        allCaptures = []
-        
-        # Iterate through the frames of the video to get all the depth maps and RGB images
-        while True:
-            try:
-                capture = playbackDepth.get_next_capture()
-                _, image = playbackImage.read()
-                allCaptures.append(capture)
-                allImages.append(image)
-            except EOFError:
-                break
-        
-        # Close the video
-        playbackDepth.close()
-        playbackImage.release()
-        print("---------")
-        print('1')
-        print("---------")
+        videoFrames = np.load(f"{video}.npz")
+        allImages = [videoFrames[image] for image in getColorFrames(video)]
+        allDepth = [videoFrames[depth] for depth in getDepthFrames(video)]
+
+        self.pointForAutoTranslate = (allDepth[0].shape[0] // 2, allDepth[0].shape[1] // 2)
+
+        del videoFrames # Clearing variable to decrease RAM usage
+
         # Parallelize the frame augmentation process to speed up the process
         augmentedFrames = p_map(
             partial(
@@ -200,45 +184,19 @@ class DataAugmentation():
                 pointForAutoTranslate=self.pointForAutoTranslate
             ),
             allImages, 
-            allCaptures,
+            allDepth,
             num_cpus=self.numJobs,
-            desc=f"{user}-{rotationName}"
+            desc=f"{user}-{rotationName}",
+            disable=True
         )
         
+        # Clearing variables to decrease RAM usage
+        del allImages
+        del allDepth
+
         # Extract the mediapipe features for every frame
         extract_mediapipe_features(augmentedFrames, currJSONPath)
         
-        # if not os.path.exists(currJSONPath):
-        #     augmentedFrames = []
-        #     frameCount = countFrames(video)
-        #     pbarFrame = tqdm(total=frameCount)
-        #     pbarFrame.set_description(f"{user}-{rotationName}")
-
-        #     # Iterate over the video and get the projected image
-        #     while (True):
-        #         try:
-
-        #             capture = playbackDepth.get_next_capture()
-        #             _, image = playbackImage.read()
-
-        #             newImage = self.augmentFrame(
-        #                 image, capture, rotation, intrinsicCameraMatrix, distortionCoefficients)
-
-        #             # For some reason, I'm not needing to convert from BGR to RGB. It's already RGB
-        #             augmentedFrames.append(newImage)
-
-        #             pbarFrame.update(1)
-
-        #         except EOFError:
-        #             break
-
-        #     # Extract the mediapipe features for every frame
-        #     extract_mediapipe_features(augmentedFrames, currJSONPath)
-
-        #     # Close the video
-        #     playbackDepth.close()
-        #     playbackImage.release()
-
         return currJSONPath
 
     def calculateMinRotationsPossible(self) -> tuple:
@@ -249,7 +207,8 @@ class DataAugmentation():
             tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
         """
         # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
-        poseFeatures, cameraIntrinsicMatrices = p_map(get3DMediapipeCoordinates, self.listOfVideos, num_cpus=self.numJobs)
+        poseFeatures = p_map(get3DMediapipeCoordinates, self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting 3D mediapipe features")
+        cameraIntrinsicMatrices = p_map(getCameraIntrinsicMatrix, self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting camera matrices")
 
         # Initial minimum values set to infinity
         min_v_0 = np.inf

@@ -23,6 +23,9 @@ def extract_mediapipe_features(frames, save_filepath, normalize_xy=True) -> None
         min_detection_confidence=0.5, 
         min_tracking_confidence=0.1
     )
+    
+    if frames == None:
+        return
 
     curr_frame = 0
     features = {}
@@ -69,10 +72,7 @@ def extract_mediapipe_features(frames, save_filepath, normalize_xy=True) -> None
         curr_frame += 1
     holistic.close()
   
-    if save_filepath == 'None' or save_filepath == False or save_filepath.lower() == 'n':
-        return features
-
-    if save_filepath == None:
+    if save_filepath == None or save_filepath == 'None' or save_filepath == False or save_filepath.lower() == 'n':
         return features
 
     with open(save_filepath, "w") as outfile:
