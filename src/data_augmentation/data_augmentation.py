@@ -151,7 +151,7 @@ class DataAugmentation():
         """
         # Get the video name by getting the last str when splitting on '/'
         videoName = video.split('/')[-1][:-4]
-        user = video.split('/')[-2].split('_')[1]
+        user = video.split('/')[4].split('_')[1]
 
         # Extract the camera calibrations used in cv2.projectPoints
         intrinsicCameraMatrix = getCameraIntrinsicMatrix(video)
@@ -185,8 +185,7 @@ class DataAugmentation():
             allImages, 
             allDepth,
             num_cpus=self.numJobs,
-            desc=f"{user}-{rotationName}",
-            disable=True
+            desc=f"{user}-{rotationName}"
         )
         
         # Clearing variables to decrease RAM usage
