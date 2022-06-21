@@ -76,7 +76,7 @@ class DataAugmentation():
                 'Point for auto translate must be within the bounds of the image')
 
         # Initializing Mediapipe (so you don't get repeating log messages saying "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")
-        extract_mediapipe_features(frames=None, save_filepath=None)
+        extract_mediapipe_features(frames=None, save_filepath=None, num_jobs=self.numJobs)
 
         # [combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.rotations = list(product(rotationsX, rotationsY))
@@ -205,7 +205,7 @@ class DataAugmentation():
             tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
         """
         # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
-        poseFeatures = p_map(get3DMediapipeCoordinates, self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting 3D mediapipe features")
+        poseFeatures = p_map(partial(get3DMediapipeCoordinates, num_jobs=self.numJobs), self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting 3D mediapipe features")
         cameraIntrinsicMatrices = p_map(getCameraIntrinsicMatrix, self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting camera matrices")
 
         # Initial minimum values set to infinity

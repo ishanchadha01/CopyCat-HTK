@@ -250,7 +250,7 @@ def getDistortionCoefficients(video_folder):
     return np.load(f'{video_folder}.npz')['distortionCoefficients']
 
 
-def get3DMediapipeCoordinates(video) -> list:
+def get3DMediapipeCoordinates(video, num_jobs) -> list:
     """get3DMediapipeCoordinates get the mediapipe coordinates (non-normalized) and their actual depth according to the Azure Kinect Depth Camera
 
     Arguments:
@@ -276,7 +276,7 @@ def get3DMediapipeCoordinates(video) -> list:
 
         # Get the openpose data in NumPy arrays
         currMediapipeFeatures = extract_mediapipe_features(
-            [frame], normalize_xy=False, save_filepath=False)
+            [frame], normalize_xy=False, save_filepath=False, num_jobs=num_jobs)
         hand0Features = np.array(
             list(currMediapipeFeatures[0]['landmarks'][0].values()))
         hand1Features = np.array(
