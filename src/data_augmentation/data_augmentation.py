@@ -185,7 +185,8 @@ class DataAugmentation():
             allImages, 
             allDepth,
             num_cpus=self.numJobs,
-            desc=f"{user}-{rotationName}"
+            desc=f"{user}-{rotationName}",
+            disable=True
         )
         
         # Clearing variables to decrease RAM usage
