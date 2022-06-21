@@ -76,7 +76,7 @@ class DataAugmentation():
                 'Point for auto translate must be within the bounds of the image')
 
         # Initializing Mediapipe (so you don't get repeating log messages saying "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")
-        extract_mediapipe_features(frames=None, save_filepath=None, num_jobs=self.numJobs)
+        extract_mediapipe_features(frames=None, save_filepath=None, num_jobs=0)
 
         # [combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.rotations = list(product(rotationsX, rotationsY))
