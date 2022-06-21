@@ -21,6 +21,11 @@ def extract_mediapipe_features(frames, save_filepath, num_jobs, normalize_xy=Tru
         normalize_xy {bool} -- whether to normalize the x, y coordinates (default: {True})
     """
     if frames == None:
+        mp_holistic = mp.solutions.holistic
+        holistic = mp_holistic.Holistic(
+            min_detection_confidence=0.5, 
+            min_tracking_confidence=0.1
+        )
         return
 
     curr_frame = 0
