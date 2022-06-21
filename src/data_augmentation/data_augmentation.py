@@ -163,11 +163,10 @@ class DataAugmentation():
 
         # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
         videoFrames = np.load(f"{video}.npz")
+        if videoFrames['DepthFrame0'].shape[0] < 2160:
+            return None
         allImages = [videoFrames[image] for image in getColorFrames(video)]
         allDepth = [videoFrames[depth] for depth in getDepthFrames(video)]
-
-        self.pointForAutoTranslate = (allDepth[0].shape[0] // 2, allDepth[0].shape[1] // 2)
-
         del videoFrames # Clearing variable to decrease RAM usage
 
         # Parallelize the frame augmentation process to speed up the process
