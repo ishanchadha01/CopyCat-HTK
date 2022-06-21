@@ -193,7 +193,7 @@ class DataAugmentation():
         del allDepth
 
         # Extract the mediapipe features for every frame
-        extract_mediapipe_features(augmentedFrames, currJSONPath)
+        extract_mediapipe_features(augmentedFrames, currJSONPath, num_jobs=self.numJobs, normalize_xy=True)
         
         return currJSONPath
 

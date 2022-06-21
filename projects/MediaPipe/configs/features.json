@@ -389,6 +389,6 @@
         "delta_horizontal_hand_dist",
         "delta_vertical_hand_dist"
     ],
-    "features_dir": "/Dataset/Mediapipe_Data_2020",
-    "raw_videos_dir": "/Dataset/KinectVideos"
+    "features_dir": "/data/CopyCat_Dataset/Mediapipe_Data_2020",
+    "raw_videos_dir": "/data/CopyCat_/Dataset/KinectVideos"
 }
