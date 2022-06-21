@@ -1,3 +1,4 @@
+from faulthandler import disable
 import cv2
 import mediapipe as mp
 import json
@@ -30,7 +31,7 @@ def extract_mediapipe_features(frames, save_filepath, num_jobs, normalize_xy=Tru
 
     curr_frame = 0
     features = {}
-    features_iterator = p_imap(partial(extract_frame_features, normalize_xy=normalize_xy), frames, num_cpus=num_jobs)
+    features_iterator = p_imap(partial(extract_frame_features, normalize_xy=normalize_xy), frames, num_cpus=num_jobs, disable=True)
     for curr_frame, curr_frame_feature in enumerate(features_iterator):
         features[curr_frame] = curr_frame_feature
   
