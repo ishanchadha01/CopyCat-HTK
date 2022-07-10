@@ -27,6 +27,8 @@ bodyPixModelsDict = {
     7: BodyPixModelPaths.RESNET50_FLOAT_STRIDE_32
 }
 
+bodyPixModel = None
+
 
 def countFrames(video) -> int:
     """countFrames counts the number of frames in a video
@@ -57,6 +59,11 @@ def countFrames(video) -> int:
         playbackImage.release()
     return frameCount
 
+def loadBodyPixelModel(useBodyPixModel):
+    global bodyPixModel
+    if bodyPixModel == None:
+        bodyPixModel = load_model(download_model(bodyPixModelsDict[useBodyPixModel]))
+    return bodyPixModel
 
 def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaussianBlurKernelSize=55) -> np.ndarray:
     """cleanDepthMap processes the depth map to remove the 0 depth pixels and replace them
@@ -74,8 +81,7 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
     # Interesting thing to note: From visual inspections, the mean of the original depth map is really close to the depth of the body
     # A different filtering mechanism if body segmentation is used
     if type(useBodyPixModel) == 'int' and useBodyPixModel in bodyPixModelsDict:
-        bodypixModel = load_model(download_model(
-            bodyPixModelsDict[useBodyPixModel]))
+        bodypixModel = loadBodyPixelModel(useBodyPixModel)
         result = bodypixModel.predict_single(image)
         mask = result.get_mask(threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
         body = depthMap[mask == 1]
@@ -237,6 +243,7 @@ def getColorFrames(video_folder):
     videoFrames = np.load(f"{video_folder}.npz")
     return sorted([frame for frame in videoFrames.files if "Color" in frame])
 
+
 def getDepthFrames(video_folder):
     videoFrames = np.load(f"{video_folder}.npz")
     return sorted([frame for frame in videoFrames.files if "Depth" in frame])
@@ -268,10 +275,10 @@ def get3DMediapipeCoordinates(video, num_jobs) -> list:
     currVideo = []
 
     for frame, depth in zip(colorFrames, depthFrames):
-        
+
         frame = videoFrames[frame]
         depth = videoFrames[depth]
-        
+
         currFrame = []
 
         # Get the openpose data in NumPy arrays
@@ -349,8 +356,7 @@ def getNonZeroDepth(row, col, depth) -> float:
         surroundingPoints = depth[minRow:maxRow, minCol:maxCol]
         percentNonZero = np.count_nonzero(
             surroundingPoints) / ((maxRow - minRow + 1) * (maxCol - minCol + 1))
-
-
+        
         radius += 1
 
     # Consider the points where the depth is not zero
@@ -465,9 +471,8 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
         np.ndarray -- RGB projected image of the current frame given the rotation
     """
     # Clean the depth map and divide by 1000 to convert millimeters to meters
-    depth = cleanDepthMap(depth, image, useBodyPixModel,
-                          medianBlurKernelSize, gaussianBlurKernelSize)
-    depthData = depth / 1000
+    depthData = cleanDepthMap(depth, image, useBodyPixModel,
+                          medianBlurKernelSize, gaussianBlurKernelSize) / 1000
 
     # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
     # The size of this matrix will be (image height x image width, 3) where the 3 is for the u, v, and depth
@@ -490,6 +495,7 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
     projectedImage, _ = cv2.projectPoints(
         worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoefficients)
+    del worldGrid
     projectedImage = projectedImage[:, 0, :]
 
     # If autoTranslate is true, then we should apply it to the image
@@ -501,6 +507,7 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
 
     # Create the new RGB image
     originalPixels = pixels[:, :-1]
+    del pixels
     newImage = createNewImage(projectedImage, originalPixels, image)
 
     return newImage

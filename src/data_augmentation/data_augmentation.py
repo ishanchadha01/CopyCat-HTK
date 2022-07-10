@@ -50,7 +50,7 @@ class DataAugmentation():
             os.makedirs(outputPath)
             print("Output path does not exist. Creating output path...")
             os.makedirs(outputPath)
-    
+
         # Delete the previous augmentations before making new ones
         if os.path.exists(outputPath):
             os.system(f'rm -rf {outputPath}')
@@ -167,35 +167,36 @@ class DataAugmentation():
             return None
         allImages = [videoFrames[image] for image in getColorFrames(video)]
         allDepth = [videoFrames[depth] for depth in getDepthFrames(video)]
-        del videoFrames # Clearing variable to decrease RAM usage
+        del videoFrames  # Clearing variable to decrease RAM usage
 
         # Parallelize the frame augmentation process to speed up the process
         augmentedFrames = p_map(
             partial(
                 augmentFrame,
-                rotation=rotation, 
-                cameraIntrinsicMatrix=intrinsicCameraMatrix, 
+                rotation=rotation,
+                cameraIntrinsicMatrix=intrinsicCameraMatrix,
                 distortionCoefficients=distortionCoefficients,
-                useBodyPixModel=self.useBodyPixModel, 
-                medianBlurKernelSize=self.medianBlurKernelSize, 
-                gaussianBlurKernelSize=self.gaussianBlurKernelSize, 
-                autoTranslate=self.autoTranslate, 
+                useBodyPixModel=self.useBodyPixModel,
+                medianBlurKernelSize=self.medianBlurKernelSize,
+                gaussianBlurKernelSize=self.gaussianBlurKernelSize,
+                autoTranslate=self.autoTranslate,
                 pointForAutoTranslate=self.pointForAutoTranslate
             ),
-            allImages, 
+            allImages,
             allDepth,
             num_cpus=self.numJobs,
             desc=f"{user}-{rotationName}",
             disable=True
         )
-        
+
         # Clearing variables to decrease RAM usage
         del allImages
         del allDepth
 
         # Extract the mediapipe features for every frame
-        extract_mediapipe_features(augmentedFrames, currJSONPath, num_jobs=self.numJobs, normalize_xy=True)
-        
+        extract_mediapipe_features(
+            augmentedFrames, currJSONPath, num_jobs=self.numJobs, normalize_xy=True)
+
         return currJSONPath
 
     def calculateMinRotationsPossible(self) -> tuple:
@@ -206,8 +207,10 @@ class DataAugmentation():
             tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
         """
         # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
-        poseFeatures = p_map(partial(get3DMediapipeCoordinates, num_jobs=self.numJobs), self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting 3D mediapipe features")
-        cameraIntrinsicMatrices = p_map(getCameraIntrinsicMatrix, self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting camera matrices")
+        poseFeatures = p_map(partial(get3DMediapipeCoordinates, num_jobs=self.numJobs),
+                             self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting 3D mediapipe features")
+        cameraIntrinsicMatrices = p_map(
+            getCameraIntrinsicMatrix, self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting camera matrices")
 
         # Initial minimum values set to infinity
         min_v_0 = np.inf
@@ -215,7 +218,8 @@ class DataAugmentation():
         min_u_0 = np.inf
         min_u_3840 = np.inf
 
-        pbarCalculateMinRotations = tqdm(total=len(poseFeatures) * 4, desc="Calculating min rotations")
+        pbarCalculateMinRotations = tqdm(
+            total=len(poseFeatures) * 4, desc="Calculating min rotations")
 
         # Apply all the 4 rotations possible to each point by iterating over each video
         for videoPoseFeature, cameraIntrinsicMatrix in zip(poseFeatures, cameraIntrinsicMatrices):
@@ -223,22 +227,22 @@ class DataAugmentation():
             curr_rotations_v_0 = np.apply_along_axis(lambda row: rotation_v_0(
                 row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
             pbarCalculateMinRotations.update(1)
-            
+
             pbarCalculateMinRotations.set_description("Rotation V=2160")
             curr_rotations_v_2160 = np.apply_along_axis(lambda row: rotation_v_2160(
                 row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
             pbarCalculateMinRotations.update(1)
-            
+
             pbarCalculateMinRotations.set_description("Rotation U=0")
             curr_rotations_u_0 = np.apply_along_axis(lambda row: rotation_u_0(
                 row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
             pbarCalculateMinRotations.update(1)
-            
+
             pbarCalculateMinRotations.set_description("Rotation U=3840")
             curr_rotations_u_3840 = np.apply_along_axis(lambda row: rotation_u_3840(
                 row[0], row[1], row[2], cameraIntrinsicMatrix), 1, videoPoseFeature)
             pbarCalculateMinRotations.update(1)
-            
+
             # Calculate the minimum values and replace the minimum values if they are smaller
             curr_min_v_0 = np.min(curr_rotations_v_0)
             curr_min_v_2160 = np.min(curr_rotations_v_2160)
