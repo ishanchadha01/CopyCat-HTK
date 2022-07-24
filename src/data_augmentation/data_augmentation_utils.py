@@ -4,13 +4,10 @@ import glob
 import os
 import sys
 import numpy as np
-import tensorflow as tf
 
 from pytransform3d.rotations import active_matrix_from_angle
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 from tf_bodypix.api import download_model, load_model, BodyPixModelPaths
-from pyk4a import PyK4APlayback
-from tqdm import tqdm
 
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
 sys.path.append(os.path.abspath('../'))
@@ -493,11 +490,14 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     worldGrid = calculateWorldCoordinates(pixels, cameraIntrinsicMatrix)
 
     # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
-    projectedImage, _ = cv2.projectPoints(
-        worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoefficients)
+    # projectedImage, _ = cv2.projectPoints(
+    #     worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoefficients)
+    # del worldGrid
+    # projectedImage = projectedImage[:, 0, :]
+    
+    projectedImage = projectPoints(worldGrid, rotation_x.dot(rotation_y), translation, cameraIntrinsicMatrix, distortionCoefficients)
     del worldGrid
-    projectedImage = projectedImage[:, 0, :]
-
+    
     # If autoTranslate is true, then we should apply it to the image
     if autoTranslate:
         Tx, Ty = solveForTxTy(
@@ -511,3 +511,27 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     newImage = createNewImage(projectedImage, originalPixels, image)
 
     return newImage
+
+def projectPoints(worldGrid, rotationMatrix, translation, cameraIntrinsicMatrix, distortionCoefficients):
+    # Extract constants from the cameraIntrinsicMatrix and distortionCoefficients
+    k1, k2, p1, p2, k3, k4, k5, k6 = distortionCoefficients
+    fx = cameraIntrinsicMatrix[0, 0]
+    cx = cameraIntrinsicMatrix[0, 2]
+    fy = cameraIntrinsicMatrix[1, 1]
+    cy = cameraIntrinsicMatrix[1, 2]
+    
+    projectedImage = rotationMatrix @ worldGrid.transpose() + translation.reshape(3, 1)
+    
+    # Homogenize coordinates
+    projectedImage[0, :] = projectedImage[0, :] / projectedImage[2, :]
+    projectedImage[1, :] = projectedImage[1, :] / projectedImage[2, :]
+    projectedImage = np.delete(projectedImage, (2), axis=0)
+    
+    # Apply distortion coeficients
+    rSquared = projectedImage[0, :] ** 2 + projectedImage[1, :] ** 2
+    distortionNumerator = 1 + k1 * rSquared + k2 * rSquared ** 2 + k3 * rSquared ** 3
+    distortionDenominator = 1 + k4 * rSquared + k5 * rSquared ** 2 + k6 * rSquared ** 3
+    projectedImage[0, :] = cx + fx * (distortionNumerator * projectedImage[0, :] / distortionDenominator) + (2 * p1 * projectedImage[0, :] * projectedImage[1, :]) + p2
+    projectedImage[1, :] = cy + fy * (distortionNumerator * projectedImage[1, :] / distortionDenominator) + (p1 * (rSquared + 2 * projectedImage[1, :] ** 2)) + (2 * p2 * projectedImage[0, :] * projectedImage[1, :])
+    
+    return projectedImage.transpose()

@@ -1,10 +1,7 @@
-# Imports
-import cv2
 import numpy as np
 import os
 import sys
 
-from pyk4a import PyK4APlayback
 from itertools import product
 from functools import partial
 from tqdm import tqdm  # Ensure that version is 4.51.0 to allow for nested progress bars
@@ -47,7 +44,6 @@ class DataAugmentation():
             raise NameError(f'Dataset folder {datasetFolder} does not exist')
 
         if not os.path.exists(outputPath):
-            os.makedirs(outputPath)
             print("Output path does not exist. Creating output path...")
             os.makedirs(outputPath)
 
@@ -92,8 +88,9 @@ class DataAugmentation():
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
 
-        # min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
-
+        min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
+        print(min_v_0, min_v_2160, min_u_0, min_u_3840)
+        
     def __str__(self) -> str:
         """__str__ returns a string representation of the DataAugmentation Object when used in print statements
 

@@ -1,4 +1,3 @@
-from faulthandler import disable
 import cv2
 import mediapipe as mp
 import json
@@ -9,7 +8,7 @@ from functools import partial
 '''
 This function was already implemented in a different script .py file in this directory by someone else before Guru
 The original script is called "mediapipePythonWrapper.py" and can be found in this directory: "/home/aslr/ProcessingPipeline/Scripts"
-Edits were made to get non-normalized values
+Edits were made to get non-normalized values and parallelize process
 '''
 def extract_mediapipe_features(frames, save_filepath, num_jobs, normalize_xy=True) -> None:
     """extract_mediapipe_features extracts the mediapipe features for each frame passed in as a list
