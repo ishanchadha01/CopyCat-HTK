@@ -205,7 +205,7 @@ class DataAugmentation():
         """       
         poseFeatures = []
         cameraIntrinsicMatrices = []
-        for video in self.listOfVideos:
+        for video in tqdm(self.listOfVideos, desc="Collecting Pose Features"):
             currPoseFeatures, cameraIntrinsicMatrix = get3DMediapipeCoordinates(video, self.numJobs)
             poseFeatures.append(currPoseFeatures)
             cameraIntrinsicMatrices.append(cameraIntrinsicMatrix)
