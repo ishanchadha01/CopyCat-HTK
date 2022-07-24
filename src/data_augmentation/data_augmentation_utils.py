@@ -481,7 +481,7 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     rotation_y = active_matrix_from_angle(1, np.deg2rad(rotation[0]))
 
     # Take the rotation matrix and use Rodrigues's formula. Needed for cv2.projectPoints
-    rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
+    # rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
 
     # The translation is set to 0 always. Autotranslation is done after cv2.projectPoints
     translation = np.array([0, 0, 0], dtype=np.float64)
