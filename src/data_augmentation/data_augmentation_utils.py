@@ -317,7 +317,7 @@ def get3DMediapipeCoordinates(video, num_jobs) -> list:
 
     currVideo = np.vstack(currVideo)
 
-    return currVideo
+    return currVideo, cameraIntrinsicMatrix
 
 
 def getNonZeroDepth(row, col, depth) -> float:

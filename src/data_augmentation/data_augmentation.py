@@ -88,8 +88,8 @@ class DataAugmentation():
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
 
-        min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
-        print(min_v_0, min_v_2160, min_u_0, min_u_3840)
+        # min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
+        # print(min_v_0, min_v_2160, min_u_0, min_u_3840)
         
     def __str__(self) -> str:
         """__str__ returns a string representation of the DataAugmentation Object when used in print statements
@@ -204,10 +204,18 @@ class DataAugmentation():
             tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
         """
         # Get the 3D mediapipe extractions for each video and flatten poseFeatures so it's just a big Nx3 numpy array
-        poseFeatures = p_map(partial(get3DMediapipeCoordinates, num_jobs=self.numJobs),
-                             self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting 3D mediapipe features")
-        cameraIntrinsicMatrices = p_map(
-            getCameraIntrinsicMatrix, self.listOfVideos[:2], num_cpus=self.numJobs, desc="Getting camera matrices")
+        # poseFeatures = p_map(partial(get3DMediapipeCoordinates, num_jobs=self.numJobs),
+        #                      self.listOfVideos, num_cpus=self.numJobs, desc="Getting 3D mediapipe features")
+        
+        # cameraIntrinsicMatrices = p_map(
+        #     getCameraIntrinsicMatrix, self.listOfVideos, num_cpus=self.numJobs, desc="Getting camera matrices")
+        
+        poseFeatures = []
+        cameraIntrinsicMatrices = []
+        for video in self.listOfVideos:
+            currPoseFeatures, cameraIntrinsicMatrix = get3DMediapipeCoordinates(video)
+            poseFeatures.append(currPoseFeatures)
+            cameraIntrinsicMatrices.append(cameraIntrinsicMatrix)
 
         # Initial minimum values set to infinity
         min_v_0 = np.inf
