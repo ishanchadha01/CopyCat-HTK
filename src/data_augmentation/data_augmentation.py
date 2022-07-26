@@ -7,6 +7,7 @@ from functools import partial
 from tqdm import tqdm  # Ensure that version is 4.51.0 to allow for nested progress bars
 from p_tqdm import p_map
 from .data_augmentation_utils import *
+from .calc_min_rotations import *
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
@@ -75,6 +76,8 @@ class DataAugmentation():
 
         # [combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.rotations = list(product(rotationsX, rotationsY))
+        self.rotations.remove((0, 0))
+        
         self.datasetFolder = datasetFolder
         self.numJobs = numJobs
         self.medianBlurKernelSize = medianBlurKernelSize
