@@ -12,7 +12,6 @@ from src.openpose_feature_extraction.generate_mediapipe_features import extract_
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
 sys.path.append(os.path.abspath('../'))
 
-
 class DataAugmentation():
     """DataAugmentation is a class that contains all the data augmentation methods and performs data augmentation to create new videos"""
 
@@ -88,8 +87,8 @@ class DataAugmentation():
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
 
-        min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
-        print(min_v_0, min_v_2160, min_u_0, min_u_3840)
+        # min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
+        # print(min_v_0, min_v_2160, min_u_0, min_u_3840)
         
     def __str__(self) -> str:
         """__str__ returns a string representation of the DataAugmentation Object when used in print statements
@@ -203,6 +202,9 @@ class DataAugmentation():
         Returns:
             tuple -- the minimum rotation in four directions returned in this order: left, right, up, down
         """       
+        
+        # Cannot use parallelization here because feature extraction uses parallelization
+        # Having child processes that call parallelization cause errors
         poseFeatures = []
         cameraIntrinsicMatrices = []
         for video in tqdm(self.listOfVideos, desc="Collecting Pose Features"):

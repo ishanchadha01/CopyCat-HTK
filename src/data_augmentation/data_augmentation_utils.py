@@ -5,6 +5,7 @@ import os
 import sys
 import numpy as np
 
+from .numba_utils import *
 from pytransform3d.rotations import active_matrix_from_angle
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 from tf_bodypix.api import download_model, load_model, BodyPixModelPaths
@@ -201,11 +202,9 @@ def createNewImage(projectedImage, originalPixels, image) -> np.ndarray:
     original_pixels = originalPixels[mask_image_grid_cv]
 
     # Convert both arrays to integer values because integer values are needed for NumPy slicing
-    image_grid_cv = np.around(image_grid_cv)
-    image_grid_cv = image_grid_cv.astype('int')
-    original_pixels = np.around(original_pixels)
-    original_pixels = original_pixels.astype('int')
-
+    image_grid_cv = roundArray(image_grid_cv).astype(int)
+    original_pixels = roundArray(original_pixels).astype(int)
+    
     # Copy the values from old to new
     newImage[image_grid_cv[:, 0], image_grid_cv[:, 1],
              :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
@@ -523,15 +522,10 @@ def projectPoints(worldGrid, rotationMatrix, translation, cameraIntrinsicMatrix,
     projectedImage = rotationMatrix @ worldGrid.transpose() + translation.reshape(3, 1)
     
     # Homogenize coordinates
-    projectedImage[0, :] = projectedImage[0, :] / projectedImage[2, :]
-    projectedImage[1, :] = projectedImage[1, :] / projectedImage[2, :]
+    projectedImage = homogenize3DCoordinates(projectedImage)
     projectedImage = np.delete(projectedImage, (2), axis=0)
     
     # Apply distortion coeficients
-    rSquared = projectedImage[0, :] ** 2 + projectedImage[1, :] ** 2
-    distortionNumerator = 1 + k1 * rSquared + k2 * rSquared ** 2 + k3 * rSquared ** 3
-    distortionDenominator = 1 + k4 * rSquared + k5 * rSquared ** 2 + k6 * rSquared ** 3
-    projectedImage[0, :] = cx + fx * (distortionNumerator * projectedImage[0, :] / distortionDenominator) + (2 * p1 * projectedImage[0, :] * projectedImage[1, :]) + p2
-    projectedImage[1, :] = cy + fy * (distortionNumerator * projectedImage[1, :] / distortionDenominator) + (p1 * (rSquared + 2 * projectedImage[1, :] ** 2)) + (2 * p2 * projectedImage[0, :] * projectedImage[1, :])
-    
+    projectedImage = applyDistortion(projectedImage, k1, k2, k3, k4, k5, k6, p1, p2, fx, cx, fy, cy)
+
     return projectedImage.transpose()
