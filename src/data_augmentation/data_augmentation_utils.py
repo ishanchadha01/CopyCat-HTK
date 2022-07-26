@@ -198,8 +198,8 @@ def createNewImage(projectedImage, originalPixels, image) -> np.ndarray:
     # Identify the pixels that clip and not consider them when copying the RGB values from the old to the new iamge
     mask_image_grid_cv = (projectedImage[:, 0] > 0) & (projectedImage[:, 1] > 0) & (
         projectedImage[:, 0] < image.shape[0] - 1) & (projectedImage[:, 1] < image.shape[1] - 1)
-    image_grid_cv = projectedImage[mask_image_grid_cv]
-    original_pixels = originalPixels[mask_image_grid_cv]
+    image_grid_cv = applyMask(projectedImage, mask_image_grid_cv)
+    original_pixels = applyMask(originalPixels, mask_image_grid_cv)
 
     # Convert both arrays to integer values because integer values are needed for NumPy slicing
     image_grid_cv = roundArray(image_grid_cv).astype(int)

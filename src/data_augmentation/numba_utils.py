@@ -5,6 +5,10 @@ from numba import njit
 def roundArray(x):
     return np.rint(x)
 
+@njit(cache=True)
+def applyMask(array, mask):
+    return array[mask]
+
 @njit(cache=True, parallel=True)
 def homogenize3DCoordinates(projectedImage):
     projectedImage[0, :] = projectedImage[0, :] / projectedImage[2, :]
