@@ -112,7 +112,7 @@ def calculateWorldCoordinates(threeDPoints, cameraIntrinsicMatrix) -> np.ndarray
     Returns:
         np.ndarray -- world coordinates (3D points)
     """
-    depthData = np.copy(threeDPoints[:, -1]).reshape(-1, 1)
+    depthData = copyThreeDPoints(threeDPoints)
     threeDPoints[:, -1] = 1
 
     worldGrid = np.linalg.inv(cameraIntrinsicMatrix) @ threeDPoints.transpose()

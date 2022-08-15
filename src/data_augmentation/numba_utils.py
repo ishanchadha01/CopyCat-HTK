@@ -9,6 +9,10 @@ def roundArray(x):
 def applyMask(array, mask):
     return array[mask]
 
+@njit(cache=True)
+def copyThreeDPoints(threeDPoints):
+    return np.copy(threeDPoints[:, -1]).reshape(-1, 1)
+
 @njit(cache=True, parallel=True)
 def homogenize3DCoordinates(projectedImage):
     projectedImage[0, :] = projectedImage[0, :] / projectedImage[2, :]
