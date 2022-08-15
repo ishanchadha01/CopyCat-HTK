@@ -1,6 +1,8 @@
 import numpy as np
+import cupy as cp
 import os
 import sys
+import torch.multiprocessing as mp
 
 from itertools import product
 from functools import partial
@@ -15,8 +17,13 @@ sys.path.append(os.path.abspath('../'))
 
 class DataAugmentation():
     """DataAugmentation is a class that contains all the data augmentation methods and performs data augmentation to create new videos"""
-
-    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numJobs=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2)):
+    # Set start method to spawn so CUDA doesn't throw initialization error
+    try:
+        mp.set_start_method('spawn')
+    except:
+        pass
+    
+    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numJobs=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useGpu=True):
         """__init__ initialized the Data Augmentation object with the required parameters
 
         Arguments:
@@ -86,6 +93,7 @@ class DataAugmentation():
         self.outputPath = outputPath
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
+        self.useGpu = useGpu
 
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
@@ -112,7 +120,7 @@ class DataAugmentation():
             str -- returns a string representation of the DataAugmentation Object when used in a list/dict/etc.
         """
         return f"DataAugmentation(rotations={self.rotations})"
-
+    
     def createDataAugmentedVideos(self) -> list:
         """createDataAugmentedVideos is the main function. It creates the data augmented videos. 
 
@@ -122,23 +130,50 @@ class DataAugmentation():
             list -- list of output paths of all the augmented videos
         """
         # Get the list of all the videos within the dataset folder
-        self.pbarAllVideos = tqdm(total=len(self.listOfVideos))
-        self.pbarAllVideos.set_description("Total Videos Done")
         self.pbarAllVideosRotations = tqdm(
             total=len(self.listOfVideos) * len(self.rotations))
         self.pbarAllVideosRotations.set_description(
             "Total Combinations Done")
         # Start applying data augmentation to each video while appending the augmented video path to a new list
         newJSONs = []
-        for video in self.listOfVideos:
-            for rotation in self.rotations:
-                newJSONs.append(self.augmentVideo(video, rotation=rotation))
+        
+        combinationList = [(video, rotation) for video in self.listOfVideos for rotation in self.rotations]
+
+        if self.useGpu:
+            threadCpu = None
+            threadGpu = None
+            while len(combinationList) > 0:
+                if threadCpu is None or not threadCpu.is_alive():
+                    video, rotation = combinationList.pop()
+                    threadCpu = mp.Process(target=self.augmentVideoCPU, args=(video, rotation))
+                    threadCpu.start()
+                    newJSONs.append(self.getNewJsonName(video, rotation))
+                    self.pbarAllVideosRotations.update(1)
+                if threadGpu is None or not threadGpu.is_alive():
+                    video, rotation = combinationList.pop()
+                    threadGpu = mp.Process(target=self.augmentVideoGPU, args=(video, rotation))
+                    threadGpu.start()
+                    newJSONs.append(self.getNewJsonName(video, rotation))
+                    self.pbarAllVideosRotations.update(1)
+        else: 
+            for video, rotation in combinationList:
+                self.augmentVideoCPU(video, rotation)
+                newJSONs.append(self.getNewJsonName(video, rotation))
                 self.pbarAllVideosRotations.update(1)
-            self.pbarAllVideos.update(1)
 
         return newJSONs
 
-    def augmentVideo(self, video, rotation) -> str:
+    def getNewJsonName(self, video, rotation):
+        # Get the video name by getting the last str when splitting on '/'
+        videoName, user = extractVideoNameAndUser(video)
+
+        rotationName = f"rotation({rotation[0]},{rotation[1]})"
+        fullRotationName = f"{rotationName}-autoTranslate({self.autoTranslate})-pointForAutoTranslate({self.pointForAutoTranslate[0]},{self.pointForAutoTranslate[1]})"
+        currJSONPath = f'{self.outputPath}/{fullRotationName}-{user}-{videoName}.json'
+        
+        return currJSONPath
+    
+    def augmentVideoCPU(self, video, rotation) -> str:
         """augmentVideo augments a video with a given rotation
 
         Arguments:
@@ -148,26 +183,66 @@ class DataAugmentation():
         Returns:
             str -- destination path of the augmented video
         """
-        # Get the video name by getting the last str when splitting on '/'
-        videoName = video.split('/')[-1][:-4]
-        user = video.split('/')[4].split('_')[1]
+        # Force TensorFlow to not use GPU
+        os.environ["CUDA_VISIBLE_DEVICES"]=""        
+        
+        # Get the video name and user to create progress bar
+        videoName, user = self.getVideoNameAndUser(video)
 
         # Extract the camera calibrations used in cv2.projectPoints
         intrinsicCameraMatrix = getCameraIntrinsicMatrix(video)
         distortionCoefficients = getDistortionCoefficients(video)
 
-        rotationName = f"rotation({rotation[0]},{rotation[1]})"
-        fullRotationName = f"{rotationName}-autoTranslate({self.autoTranslate})-pointForAutoTranslate({self.pointForAutoTranslate[0]},{self.pointForAutoTranslate[1]})"
-        currJSONPath = f'{self.outputPath}/{fullRotationName}-{user}-{videoName}.json'
+        currJSONPath = self.getNewJsonName(video, rotation)
 
         # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
+        augmentedFrames = self.augmentFrameCPU(video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients)
+
+        # Extract the mediapipe features for every frame
+        extract_mediapipe_features(
+            augmentedFrames, currJSONPath, num_jobs=self.numJobs, normalize_xy=True)
+
+        return currJSONPath
+    
+    def augmentVideoGPU(self, video, rotation):
+        """augmentVideo augments a video with a given rotation
+
+        Arguments:
+            video {str} -- the path of the video to augment
+            rotation {list} -- list of tuple containing X and Y rotation to apply to the video
+
+        Returns:
+            str -- destination path of the augmented video
+        """
+        # Force Tensorflow and Cupy to use GPU
+        os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+        os.environ["CUDA_VISIBLE_DEVICES"]="0"
+        
+        # Get the video name and user to create progress bar
+        videoName, user = self.getVideoNameAndUser(video)
+
+        # Extract the camera calibrations used in cv2.projectPoints
+        intrinsicCameraMatrix = cp.asarray(getCameraIntrinsicMatrix(video))
+        distortionCoefficients = cp.asarray(getDistortionCoefficients(video))
+
+        currJSONPath = self.getNewJsonName(video, rotation)
+        
+        # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
+        augmentedFrames = self.augmentFrameGPU(video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients)
+
+        # Extract the mediapipe features for every frame
+        extract_mediapipe_features(
+            augmentedFrames, currJSONPath, num_jobs=self.numJobs, normalize_xy=True)
+
+        return currJSONPath
+    
+    def augmentFrameCPU(self, video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients) -> list:       
         videoFrames = np.load(f"{video}.npz")
         if videoFrames['DepthFrame0'].shape[0] < 2160:
             return None
         allImages = [videoFrames[image] for image in getColorFrames(video)]
         allDepth = [videoFrames[depth] for depth in getDepthFrames(video)]
-        del videoFrames  # Clearing variable to decrease RAM usage
-
+        
         # Parallelize the frame augmentation process to speed up the process
         augmentedFrames = p_map(
             partial(
@@ -179,24 +254,42 @@ class DataAugmentation():
                 medianBlurKernelSize=self.medianBlurKernelSize,
                 gaussianBlurKernelSize=self.gaussianBlurKernelSize,
                 autoTranslate=self.autoTranslate,
-                pointForAutoTranslate=self.pointForAutoTranslate
+                pointForAutoTranslate=self.pointForAutoTranslate,
+                gpu=False
             ),
             allImages,
             allDepth,
             num_cpus=self.numJobs,
-            desc=f"{user}-{rotationName}",
-            disable=True
+            desc=f"{user}-{videoName}-CPU"
         )
-
-        # Clearing variables to decrease RAM usage
-        del allImages
-        del allDepth
-
-        # Extract the mediapipe features for every frame
-        extract_mediapipe_features(
-            augmentedFrames, currJSONPath, num_jobs=self.numJobs, normalize_xy=True)
-
-        return currJSONPath
+        return augmentedFrames
+    
+    def augmentFrameGPU(self, video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients) -> list:
+        videoFrames = cp.load(f"{video}.npz")
+        if videoFrames['DepthFrame0'].shape[0] < 2160:
+            return None
+        videoFramesFiles = np.load(f"{video}.npz").files
+        total_frames = int((len(videoFramesFiles) - 2) / 2)
+        augmentedFrames = []
+        for frame_no in tqdm(range(total_frames), desc=f"{user}-{videoName}-GPU"):
+            depthFrame = videoFrames[f'DepthFrame{frame_no}']
+            colorFrame = videoFrames[f'ColorFrame{frame_no}']
+            augmentedFrames.append(
+                augmentFrame(
+                    colorFrame,
+                    depthFrame,
+                    rotation=rotation,
+                    cameraIntrinsicMatrix=intrinsicCameraMatrix,
+                    distortionCoefficients=distortionCoefficients,
+                    useBodyPixModel=self.useBodyPixModel,
+                    medianBlurKernelSize=self.medianBlurKernelSize,
+                    gaussianBlurKernelSize=self.gaussianBlurKernelSize,
+                    autoTranslate=self.autoTranslate,
+                    pointForAutoTranslate=self.pointForAutoTranslate,
+                    gpu=True
+                )
+            )
+        return augmentedFrames
 
     def calculateMinRotationsPossible(self) -> tuple:
         """calculateMinRotationsPossible returns the minimum rotations possible in the 2 main axes (going up and down)

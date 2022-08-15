@@ -4,11 +4,13 @@ import glob
 import os
 import sys
 import numpy as np
+import cupy as cp
+import tensorflow as tf
 
 from .numba_utils import *
-from pytransform3d.rotations import active_matrix_from_angle
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 from tf_bodypix.api import download_model, load_model, BodyPixModelPaths
+from cupyx.scipy.ndimage import gaussian_filter, median_filter
 
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
 sys.path.append(os.path.abspath('../'))
@@ -28,42 +30,29 @@ bodyPixModelsDict = {
 bodyPixModel = None
 
 
-def countFrames(video) -> int:
-    """countFrames counts the number of frames in a video
+def extractVideoNameAndUser(video: str) -> tuple:
+    """extractVideoNameAndUser extracts the video name and user from the video name
 
     Arguments:
-        video {str} -- path of video for which the frames are to be counted
+        video {str} -- the video name
 
     Returns:
-        int -- number of frames in the video
+        tuple -- the video name and user
     """
-    try:
-        # If cv2 version greater than 3, then metadata is different
-        if int(cv2.__version__.split('.')[0]) > 3:
-            frameCount = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-        else:
-            frameCount = int(video.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT))
+    videoName = video.split('/')[-1][:-4]
+    user = video.split('/')[4].split('_')[1]
+    return videoName, user
 
-    # Count frames manually if this fails
-    except:
-        playbackImage = cv2.VideoCapture(video)
-        frameCount = 0
-        while playbackImage.isOpened():
-            ret, _ = playbackImage.read()
-            if ret == True:
-                frameCount += 1
-            else:
-                break
-        playbackImage.release()
-    return frameCount
 
 def loadBodyPixelModel(useBodyPixModel):
     global bodyPixModel
     if bodyPixModel == None:
-        bodyPixModel = load_model(download_model(bodyPixModelsDict[useBodyPixModel]))
+        bodyPixModel = load_model(download_model(
+            bodyPixModelsDict[useBodyPixModel]))
     return bodyPixModel
 
-def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaussianBlurKernelSize=55) -> np.ndarray:
+
+def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaussianBlurKernelSize=55, gpu=False) -> np.ndarray:
     """cleanDepthMap processes the depth map to remove the 0 depth pixels and replace them
 
     Arguments:
@@ -79,10 +68,18 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
     # Interesting thing to note: From visual inspections, the mean of the original depth map is really close to the depth of the body
     # A different filtering mechanism if body segmentation is used
     if type(useBodyPixModel) == 'int' and useBodyPixModel in bodyPixModelsDict:
-        bodypixModel = loadBodyPixelModel(useBodyPixModel)
-        result = bodypixModel.predict_single(image)
-        mask = result.get_mask(threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
-        body = depthMap[mask == 1]
+        if gpu:
+            with tf.device('/gpu:0'):
+                bodypixModel = loadBodyPixelModel(useBodyPixModel)
+                result = bodypixModel.predict_single(image)
+                mask = result.get_mask(threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
+        else:
+            with tf.device('/cpu:0'):
+                bodypixModel = loadBodyPixelModel(useBodyPixModel)
+                result = bodypixModel.predict_single(image)
+                mask = asType(result.get_mask(threshold=0.5).numpy(), np.uint8)[:, :, 0]
+                
+        body = depthMap[mask == 1] 
         body = cv2.dilate(body, np.ones((5, 5), np.uint8), iterations=1)[:, 0]
         body[body == 0] = np.mean(body)
         depthMap[mask == 1] = body
@@ -96,13 +93,16 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
         depthMap[depthMap == 0] = np.max(depthMap)
 
     # Overall filters applied to the depth map to smooth out replacements done in the previous step
-    depth = cv2.GaussianBlur(cv2.medianBlur(
-        depthMap, medianBlurKernelSize), (gaussianBlurKernelSize, gaussianBlurKernelSize), 0)
-
+    if gpu:
+        depth = gaussian_filter(median_filter(depthMap, medianBlurKernelSize), sigma=0, truncate=1/5)
+    else:
+        depth = cv2.GaussianBlur(cv2.medianBlur(
+            depthMap, medianBlurKernelSize), (gaussianBlurKernelSize, gaussianBlurKernelSize), 0)
+    
     return depth
 
 
-def calculateWorldCoordinates(threeDPoints, cameraIntrinsicMatrix) -> np.ndarray:
+def calculateWorldCoordinates(threeDPoints, cameraIntrinsicMatrix, gpu=False) -> np.ndarray:
     """calculateWorldCoordinates calculates the world coordinates (3D points) from the 2D array
 
     Arguments:
@@ -112,11 +112,17 @@ def calculateWorldCoordinates(threeDPoints, cameraIntrinsicMatrix) -> np.ndarray
     Returns:
         np.ndarray -- world coordinates (3D points)
     """
-    depthData = copyThreeDPoints(threeDPoints)
-    threeDPoints[:, -1] = 1
-
-    worldGrid = np.linalg.inv(cameraIntrinsicMatrix) @ threeDPoints.transpose()
-    worldGrid = worldGrid.T * depthData
+    # depthData = np.copy(threeDPoints[:, -1]).reshape(-1, 1)
+    if gpu:
+        depthData = cp.copy(threeDPoints[:, -1]).reshape(-1, 1)
+        threeDPoints[:, -1] = 1
+        worldGrid = cp.linalg.inv(cameraIntrinsicMatrix) @ threeDPoints.transpose()
+        worldGrid = worldGrid.T * depthData
+    else:
+        depthData = copyThreeDPoints(threeDPoints)
+        threeDPoints[:, -1] = 1
+        worldGrid = np.linalg.inv(cameraIntrinsicMatrix) @ threeDPoints.transpose()
+        worldGrid = worldGrid.T * depthData
 
     return worldGrid
 
@@ -181,7 +187,7 @@ def solveForTxTy(pointForAutoTranslate, y_rotation, x_rotation, depthMap, camera
     return T_x, T_y
 
 
-def createNewImage(projectedImage, originalPixels, image) -> np.ndarray:
+def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarray:
     """createNewImage created the RGB projected image given the pixel coordinates
 
     Arguments:
@@ -192,31 +198,70 @@ def createNewImage(projectedImage, originalPixels, image) -> np.ndarray:
     Returns:
         np.ndarray -- RGB projected image
     """
-    # Define the new RGB image as 0s. Helpful later on because all 0s correspond to black pixels
-    newImage = np.zeros((image.shape[0], image.shape[1], 3), dtype=np.uint8)
+    if gpu:
+        # Define the new RGB image as 0s. Helpful later on because all 0s correspond to black pixels
+        newImage = cp.zeros((image.shape[0], image.shape[1], 3), dtype=cp.uint8)
 
-    # Identify the pixels that clip and not consider them when copying the RGB values from the old to the new iamge
-    mask_image_grid_cv = (projectedImage[:, 0] > 0) & (projectedImage[:, 1] > 0) & (
-        projectedImage[:, 0] < image.shape[0] - 1) & (projectedImage[:, 1] < image.shape[1] - 1)
-    image_grid_cv = applyMask(projectedImage, mask_image_grid_cv)
-    original_pixels = applyMask(originalPixels, mask_image_grid_cv)
+        maskGreaterThan = cp.ElementwiseKernel(
+            'T x, T y', 
+            'T z', 
+            'z = x > y? 1 : 0',
+            'maskGreaterThan'
+        )
+        maskLessThan = cp.ElementwiseKernel(
+            'T x, T y',
+            'T z',
+            'z = x < y? 1 : 0',
+            'maskLessThan'
+        )
+        mask1 = maskGreaterThan(projectedImage[:, 0], 0).astype(cp.bool)
+        mask2 = maskGreaterThan(projectedImage[:, 1], 0).astype(cp.bool)
+        mask3 = maskLessThan(projectedImage[:, 0], image.shape[0] - 1).astype(cp.bool)
+        mask4 = maskLessThan(projectedImage[:, 1], image.shape[1] - 1).astype(cp.bool)
+        mask_image_grid_cv = mask1 & mask2 & mask3 & mask4
+        
+        image_grid_cv = projectedImage[mask_image_grid_cv]
+        original_pixels = originalPixels[mask_image_grid_cv]
 
-    # Convert both arrays to integer values because integer values are needed for NumPy slicing
-    image_grid_cv = roundArray(image_grid_cv).astype(int)
-    original_pixels = roundArray(original_pixels).astype(int)
-    
-    # Copy the values from old to new
-    newImage[image_grid_cv[:, 0], image_grid_cv[:, 1],
-             :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
+        # Convert both arrays to integer values because integer values are needed for NumPy slicing
+        image_grid_cv = cp.rint(image_grid_cv).astype('int')
+        original_pixels = cp.rint(original_pixels).astype('int')
 
-    # Apply morphology to the new image to get rid of black spots surrounded by RGB values
-    newImage = cv2.morphologyEx(
-        newImage, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+        # Copy the values from old to new
+        newImage[image_grid_cv[:, 0], image_grid_cv[:, 1],
+                :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
+        
+        # Apply morphology to the new image to get rid of black spots surrounded by RGB values
+        newImage = cv2.morphologyEx(
+            cp.asnumpy(newImage), cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+             
+    else:
+        # Define the new RGB image as 0s. Helpful later on because all 0s correspond to black pixels
+        newImage = np.zeros((image.shape[0], image.shape[1], 3), dtype=np.uint8)
 
+        # Identify the pixels that clip and not consider them when copying the RGB values from the old to the new iamge
+        mask_image_grid_cv = (projectedImage[:, 0] > 0) & (projectedImage[:, 1] > 0) & (
+            projectedImage[:, 0] < image.shape[0] - 1) & (projectedImage[:, 1] < image.shape[1] - 1)
+
+        image_grid_cv = applyMask(projectedImage, mask_image_grid_cv)
+        original_pixels = applyMask(originalPixels, mask_image_grid_cv)
+
+        # Convert both arrays to integer values because integer values are needed for NumPy slicing
+        image_grid_cv = asType(roundArray(image_grid_cv), 'int')
+        original_pixels = asType(roundArray(original_pixels), 'int')
+
+        # Copy the values from old to new
+        newImage[image_grid_cv[:, 0], image_grid_cv[:, 1],
+                :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
+
+        # Apply morphology to the new image to get rid of black spots surrounded by RGB values
+        newImage = cv2.morphologyEx(
+            newImage, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+        
     return newImage
 
 
-def createPixelCoordinateMatrix(depthData) -> np.ndarray:
+def createPixelCoordinateMatrix(depthData, gpu=False) -> np.ndarray:
     """createPixelCoordinateMatrix takes the pixel data and creates voxels with the depth data
 
     Arguments:
@@ -225,13 +270,20 @@ def createPixelCoordinateMatrix(depthData) -> np.ndarray:
     Returns:
         np.ndarray -- voxel coordinates
     """
-    pixels = np.indices(depthData.shape)
-    rows = pixels[0].flatten().reshape(-1, 1)
-    cols = pixels[1].flatten().reshape(-1, 1)
-    pixels = np.hstack((rows, cols))
-    flattenDepth = depthData.flatten().reshape(-1, 1)
-    pixels = np.hstack((pixels, flattenDepth))
-
+    if gpu:
+        pixels = cp.indices(depthData.shape)
+        rows = pixels[0].flatten().reshape(-1, 1)
+        cols = pixels[1].flatten().reshape(-1, 1)
+        pixels = cp.hstack((rows, cols))
+        flattenDepth = depthData.flatten().reshape(-1, 1)
+        pixels = cp.hstack((pixels, flattenDepth))
+    else:
+        pixels = np.indices(depthData.shape)
+        rows = pixels[0].flatten().reshape(-1, 1)
+        cols = pixels[1].flatten().reshape(-1, 1)
+        pixels = np.hstack((rows, cols))
+        flattenDepth = depthData.flatten().reshape(-1, 1)
+        pixels = np.hstack((pixels, flattenDepth))
     return pixels
 
 
@@ -252,7 +304,48 @@ def getCameraIntrinsicMatrix(video_folder):
 def getDistortionCoefficients(video_folder):
     return np.load(f'{video_folder}.npz')['distortionCoefficients']
 
-def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoefficients, useBodyPixModel, medianBlurKernelSize, gaussianBlurKernelSize, autoTranslate, pointForAutoTranslate) -> np.ndarray:
+def getRotationMatrix(basis, angle, gpu=False):
+    if gpu:
+        c = np.cos(angle)
+        s = np.sin(angle)
+
+        if basis == 0:
+            R = cp.array([[1.0, 0.0, 0.0],
+                        [0.0, c, -s],
+                        [0.0, s, c]])
+        elif basis == 1:
+            R = cp.array([[c, 0.0, s],
+                        [0.0, 1.0, 0.0],
+                        [-s, 0.0, c]])
+        elif basis == 2:
+            R = cp.array([[c, -s, 0.0],
+                        [s, c, 0.0],
+                        [0.0, 0.0, 1.0]])
+        else:
+            raise ValueError("Basis must be in [0, 1, 2]")
+    else:
+        c = np.cos(angle)
+        s = np.sin(angle)
+
+        if basis == 0:
+            R = np.array([[1.0, 0.0, 0.0],
+                        [0.0, c, -s],
+                        [0.0, s, c]])
+        elif basis == 1:
+            R = np.array([[c, 0.0, s],
+                        [0.0, 1.0, 0.0],
+                        [-s, 0.0, c]])
+        elif basis == 2:
+            R = np.array([[c, -s, 0.0],
+                        [s, c, 0.0],
+                        [0.0, 0.0, 1.0]])
+        else:
+            raise ValueError("Basis must be in [0, 1, 2]")
+        
+    return R
+
+
+def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoefficients, useBodyPixModel, medianBlurKernelSize, gaussianBlurKernelSize, autoTranslate, pointForAutoTranslate, gpu=False) -> np.ndarray:
     """augmentFrame rotates the current frame by the given rotation
     Arguments:
         image {np.ndarray} -- RGB image of the current frame
@@ -266,35 +359,29 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     """
     # Clean the depth map and divide by 1000 to convert millimeters to meters
     depthData = cleanDepthMap(depth, image, useBodyPixModel,
-                          medianBlurKernelSize, gaussianBlurKernelSize) / 1000
-
+                          medianBlurKernelSize, gaussianBlurKernelSize, gpu=gpu) / 1000
+    
     # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
     # The size of this matrix will be (image height x image width, 3) where the 3 is for the u, v, and depth
-    pixels = createPixelCoordinateMatrix(depthData)
+    pixels = createPixelCoordinateMatrix(depthData, gpu=gpu)
 
     # Define angle of rotation around x and y (not z)
     # For some reason, the x rotation is actually the y-rotation based off experiments. Guru believes it has to do with how the u and v coordinates are defined
-    rotation_x = active_matrix_from_angle(0, np.deg2rad(rotation[1]))
-    rotation_y = active_matrix_from_angle(1, np.deg2rad(rotation[0]))
-
-    # Take the rotation matrix and use Rodrigues's formula. Needed for cv2.projectPoints
-    # rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
-
+    rotation_x = getRotationMatrix(0, np.deg2rad(rotation[1]), gpu=gpu)
+    rotation_y = getRotationMatrix(1, np.deg2rad(rotation[0]), gpu=gpu)
+    
     # The translation is set to 0 always. Autotranslation is done after cv2.projectPoints
-    translation = np.array([0, 0, 0], dtype=np.float64)
-
+    if gpu:
+        translation = cp.array([0., 0., 0.])
+    else:
+        translation = np.array([0., 0., 0.])
+        
     # Calculate the world coordinates of the pixels
-    worldGrid = calculateWorldCoordinates(pixels, cameraIntrinsicMatrix)
-
-    # Apply cv2.projectPoints to the world coordinates to get the new pixel coordinates
-    # projectedImage, _ = cv2.projectPoints(
-    #     worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoefficients)
-    # del worldGrid
-    # projectedImage = projectedImage[:, 0, :]
+    worldGrid = calculateWorldCoordinates(pixels, cameraIntrinsicMatrix, gpu=gpu)
     
-    projectedImage = projectPoints(worldGrid, rotation_x.dot(rotation_y), translation, cameraIntrinsicMatrix, distortionCoefficients)
+    projectedImage = projectPoints(worldGrid, rotation_x.dot(rotation_y), translation, cameraIntrinsicMatrix, distortionCoefficients, gpu=gpu)
     del worldGrid
-    
+
     # If autoTranslate is true, then we should apply it to the image
     if autoTranslate:
         Tx, Ty = solveForTxTy(
@@ -305,25 +392,39 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     # Create the new RGB image
     originalPixels = pixels[:, :-1]
     del pixels
-    newImage = createNewImage(projectedImage, originalPixels, image)
+
+    newImage = createNewImage(projectedImage, originalPixels, image, gpu=gpu)
 
     return newImage
 
-def projectPoints(worldGrid, rotationMatrix, translation, cameraIntrinsicMatrix, distortionCoefficients):
+
+def projectPoints(worldGrid, rotationMatrix, translation, cameraIntrinsicMatrix, distortionCoefficients, gpu=False):
+
     # Extract constants from the cameraIntrinsicMatrix and distortionCoefficients
     k1, k2, p1, p2, k3, k4, k5, k6 = distortionCoefficients
     fx = cameraIntrinsicMatrix[0, 0]
     cx = cameraIntrinsicMatrix[0, 2]
     fy = cameraIntrinsicMatrix[1, 1]
     cy = cameraIntrinsicMatrix[1, 2]
-    
-    projectedImage = rotationMatrix @ worldGrid.transpose() + translation.reshape(3, 1)
-    
-    # Homogenize coordinates
-    projectedImage = homogenize3DCoordinates(projectedImage)
-    projectedImage = np.delete(projectedImage, (2), axis=0)
-    
-    # Apply distortion coeficients
-    projectedImage = applyDistortion(projectedImage, k1, k2, k3, k4, k5, k6, p1, p2, fx, cx, fy, cy)
 
+    projectedImage = rotationMatrix @ worldGrid.transpose() + translation.reshape(3, 1)
+
+    if gpu:
+        # Homogenize coordinates
+        projectedImage[0, :] = projectedImage[0, :] / projectedImage[2, :]
+        projectedImage[1, :] = projectedImage[1, :] / projectedImage[2, :]
+        projectedImage = projectedImage[:-1, :]
+
+        # Apply distortion coeficients
+        rSquared = projectedImage[0, :] ** 2 + projectedImage[1, :] ** 2
+        distortionNumerator = 1 + k1 * rSquared + k2 * rSquared ** 2 + k3 * rSquared ** 3
+        distortionDenominator = 1 + k4 * rSquared + k5 * rSquared ** 2 + k6 * rSquared ** 3
+        projectedImage[0, :] = cx + fx * (distortionNumerator * projectedImage[0, :] / distortionDenominator) + (2 * p1 * projectedImage[0, :] * projectedImage[1, :]) + p2
+        projectedImage[1, :] = cy + fy * (distortionNumerator * projectedImage[1, :] / distortionDenominator) + (p1 * (rSquared + 2 * projectedImage[1, :] ** 2)) + (2 * p2 * projectedImage[0, :] * projectedImage[1, :])
+
+    else:
+        projectedImage = homogenize3DCoordinates(projectedImage)
+        projectedImage = projectedImage[:-1, :]
+        projectedImage = applyDistortion(projectedImage, k1, k2, k3, k4, k5, k6, p1, p2, fx, cx, fy, cy)
+        
     return projectedImage.transpose()
