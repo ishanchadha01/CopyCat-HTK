@@ -1,6 +1,8 @@
 import numpy as np
+from numba import njit
 from .data_augmentation_utils import *
 
+@njit(cache=True, parallel=True)
 def get3DMediapipeCoordinates(video, num_jobs) -> list:
     """get3DMediapipeCoordinates get the mediapipe coordinates (non-normalized) and their actual depth according to the Azure Kinect Depth Camera
 
@@ -66,6 +68,7 @@ def get3DMediapipeCoordinates(video, num_jobs) -> list:
 
     return currVideo, cameraIntrinsicMatrix
 
+@njit(cache=True, parallel=True)
 def getNonZeroDepth(row, col, depth) -> float:
     """getNonZeroDepth gets the non-zero depth value of a point
     This approach differs from the "cleanDepthMap" method. This method works on cleaning the depth for one point. cleanDepthMap cleans up the whole entire depth map. 
@@ -108,6 +111,7 @@ def getNonZeroDepth(row, col, depth) -> float:
     # Return the average of the non-zero points
     return np.mean(nonZeroPoints)
 
+@njit(cache=True, parallel=True)
 def rotation_v_0(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
     """rotation_v_0 calculates the minimum rotation going left
 
@@ -130,7 +134,7 @@ def rotation_v_0(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
 
     return theta_x_degrees
 
-
+@njit(cache=True, parallel=True)
 def rotation_v_2160(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
     """rotation_v_2160 calculates the minimum rotation going right
 
@@ -153,7 +157,7 @@ def rotation_v_2160(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
 
     return theta_x_degrees
 
-
+@njit(cache=True, parallel=True)
 def rotation_u_0(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
     """rotation_u_0 calculates the minimum rotation going up
 
@@ -176,7 +180,7 @@ def rotation_u_0(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
 
     return theta_x_degrees
 
-
+@njit(cache=True, parallel=True)
 def rotation_u_3840(X_int, Y_int, Z_int, cameraIntrinsicMatrix) -> float:
     """rotation_u_3840 calculates the minimum rotation going down
 
