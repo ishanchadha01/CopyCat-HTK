@@ -52,6 +52,51 @@ def loadBodyPixelModel(useBodyPixModel):
     return bodyPixModel
 
 
+def countFrames(video) -> int:
+    """countFrames counts the number of frames in a video
+    Arguments:
+        video {str} -- path of video for which the frames are to be counted
+    Returns:
+        int -- number of frames in the video
+    """
+    try:
+        # If cv2 version greater than 3, then metadata is different
+        if int(cv2.__version__.split('.')[0]) > 3:
+            frameCount = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+        else:
+            frameCount = int(video.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT))
+
+    # Count frames manually if this fails
+    except:
+        playbackImage = cv2.VideoCapture(video)
+        frameCount = 0
+        while playbackImage.isOpened():
+            ret, _ = playbackImage.read()
+            if ret == True:
+                frameCount += 1
+            else:
+                break
+        playbackImage.release()
+    return frameCount
+
+
+def exportVideo(video, currJSONPath, augmentedFrames):
+    originalVideo = cv2.VideoCapture(video)
+    codec = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
+    fps = countFrames(video)
+    frameWidth = int(originalVideo.get(3))
+    frameHeight = int(originalVideo.get(4))
+
+    outVideo = cv2.VideoWriter(currJSONPath.replace(
+        '.json', '.avi'), codec, fps, (frameWidth, frameHeight))
+
+    for frame in augmentedFrames:
+        outVideo.write(frame)
+
+    originalVideo.release()
+    outVideo.release()
+
+
 def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaussianBlurKernelSize=55, gpu=False) -> np.ndarray:
     """cleanDepthMap processes the depth map to remove the 0 depth pixels and replace them
 
@@ -72,14 +117,16 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
             with tf.device('/gpu:0'):
                 bodypixModel = loadBodyPixelModel(useBodyPixModel)
                 result = bodypixModel.predict_single(image)
-                mask = result.get_mask(threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
+                mask = result.get_mask(
+                    threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
         else:
             with tf.device('/cpu:0'):
                 bodypixModel = loadBodyPixelModel(useBodyPixModel)
                 result = bodypixModel.predict_single(image)
-                mask = asType(result.get_mask(threshold=0.5).numpy(), np.uint8)[:, :, 0]
-                
-        body = depthMap[mask == 1] 
+                mask = asType(result.get_mask(
+                    threshold=0.5).numpy(), np.uint8)[:, :, 0]
+
+        body = depthMap[mask == 1]
         body = cv2.dilate(body, np.ones((5, 5), np.uint8), iterations=1)[:, 0]
         body[body == 0] = np.mean(body)
         depthMap[mask == 1] = body
@@ -94,11 +141,12 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
 
     # Overall filters applied to the depth map to smooth out replacements done in the previous step
     if gpu:
-        depth = gaussian_filter(median_filter(depthMap, medianBlurKernelSize), sigma=0, truncate=1/5)
+        depth = gaussian_filter(median_filter(
+            depthMap, medianBlurKernelSize), sigma=0, truncate=1/5)
     else:
         depth = cv2.GaussianBlur(cv2.medianBlur(
             depthMap, medianBlurKernelSize), (gaussianBlurKernelSize, gaussianBlurKernelSize), 0)
-    
+
     return depth
 
 
@@ -116,12 +164,14 @@ def calculateWorldCoordinates(threeDPoints, cameraIntrinsicMatrix, gpu=False) ->
     if gpu:
         depthData = cp.copy(threeDPoints[:, -1]).reshape(-1, 1)
         threeDPoints[:, -1] = 1
-        worldGrid = cp.linalg.inv(cameraIntrinsicMatrix) @ threeDPoints.transpose()
+        worldGrid = cp.linalg.inv(
+            cameraIntrinsicMatrix) @ threeDPoints.transpose()
         worldGrid = worldGrid.T * depthData
     else:
         depthData = copyThreeDPoints(threeDPoints)
         threeDPoints[:, -1] = 1
-        worldGrid = np.linalg.inv(cameraIntrinsicMatrix) @ threeDPoints.transpose()
+        worldGrid = np.linalg.inv(
+            cameraIntrinsicMatrix) @ threeDPoints.transpose()
         worldGrid = worldGrid.T * depthData
 
     return worldGrid
@@ -200,11 +250,12 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
     """
     if gpu:
         # Define the new RGB image as 0s. Helpful later on because all 0s correspond to black pixels
-        newImage = cp.zeros((image.shape[0], image.shape[1], 3), dtype=cp.uint8)
+        newImage = cp.zeros(
+            (image.shape[0], image.shape[1], 3), dtype=cp.uint8)
 
         maskGreaterThan = cp.ElementwiseKernel(
-            'T x, T y', 
-            'T z', 
+            'T x, T y',
+            'T z',
             'z = x > y? 1 : 0',
             'maskGreaterThan'
         )
@@ -216,10 +267,12 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
         )
         mask1 = maskGreaterThan(projectedImage[:, 0], 0).astype(cp.bool)
         mask2 = maskGreaterThan(projectedImage[:, 1], 0).astype(cp.bool)
-        mask3 = maskLessThan(projectedImage[:, 0], image.shape[0] - 1).astype(cp.bool)
-        mask4 = maskLessThan(projectedImage[:, 1], image.shape[1] - 1).astype(cp.bool)
+        mask3 = maskLessThan(
+            projectedImage[:, 0], image.shape[0] - 1).astype(cp.bool)
+        mask4 = maskLessThan(
+            projectedImage[:, 1], image.shape[1] - 1).astype(cp.bool)
         mask_image_grid_cv = mask1 & mask2 & mask3 & mask4
-        
+
         image_grid_cv = projectedImage[mask_image_grid_cv]
         original_pixels = originalPixels[mask_image_grid_cv]
 
@@ -229,15 +282,16 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
 
         # Copy the values from old to new
         newImage[image_grid_cv[:, 0], image_grid_cv[:, 1],
-                :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
-        
+                 :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
+
         # Apply morphology to the new image to get rid of black spots surrounded by RGB values
         newImage = cv2.morphologyEx(
             cp.asnumpy(newImage), cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-             
+
     else:
         # Define the new RGB image as 0s. Helpful later on because all 0s correspond to black pixels
-        newImage = np.zeros((image.shape[0], image.shape[1], 3), dtype=np.uint8)
+        newImage = np.zeros(
+            (image.shape[0], image.shape[1], 3), dtype=np.uint8)
 
         # Identify the pixels that clip and not consider them when copying the RGB values from the old to the new iamge
         mask_image_grid_cv = (projectedImage[:, 0] > 0) & (projectedImage[:, 1] > 0) & (
@@ -252,12 +306,12 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
 
         # Copy the values from old to new
         newImage[image_grid_cv[:, 0], image_grid_cv[:, 1],
-                :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
+                 :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
 
         # Apply morphology to the new image to get rid of black spots surrounded by RGB values
         newImage = cv2.morphologyEx(
             newImage, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-        
+
     return newImage
 
 
@@ -304,6 +358,7 @@ def getCameraIntrinsicMatrix(video_folder):
 def getDistortionCoefficients(video_folder):
     return np.load(f'{video_folder}.npz')['distortionCoefficients']
 
+
 def getRotationMatrix(basis, angle, gpu=False):
     if gpu:
         c = np.cos(angle)
@@ -311,16 +366,16 @@ def getRotationMatrix(basis, angle, gpu=False):
 
         if basis == 0:
             R = cp.array([[1.0, 0.0, 0.0],
-                        [0.0, c, -s],
-                        [0.0, s, c]])
+                          [0.0, c, -s],
+                          [0.0, s, c]])
         elif basis == 1:
             R = cp.array([[c, 0.0, s],
-                        [0.0, 1.0, 0.0],
-                        [-s, 0.0, c]])
+                          [0.0, 1.0, 0.0],
+                          [-s, 0.0, c]])
         elif basis == 2:
             R = cp.array([[c, -s, 0.0],
-                        [s, c, 0.0],
-                        [0.0, 0.0, 1.0]])
+                          [s, c, 0.0],
+                          [0.0, 0.0, 1.0]])
         else:
             raise ValueError("Basis must be in [0, 1, 2]")
     else:
@@ -329,19 +384,19 @@ def getRotationMatrix(basis, angle, gpu=False):
 
         if basis == 0:
             R = np.array([[1.0, 0.0, 0.0],
-                        [0.0, c, -s],
-                        [0.0, s, c]])
+                          [0.0, c, -s],
+                          [0.0, s, c]])
         elif basis == 1:
             R = np.array([[c, 0.0, s],
-                        [0.0, 1.0, 0.0],
-                        [-s, 0.0, c]])
+                          [0.0, 1.0, 0.0],
+                          [-s, 0.0, c]])
         elif basis == 2:
             R = np.array([[c, -s, 0.0],
-                        [s, c, 0.0],
-                        [0.0, 0.0, 1.0]])
+                          [s, c, 0.0],
+                          [0.0, 0.0, 1.0]])
         else:
             raise ValueError("Basis must be in [0, 1, 2]")
-        
+
     return R
 
 
@@ -359,8 +414,8 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     """
     # Clean the depth map and divide by 1000 to convert millimeters to meters
     depthData = cleanDepthMap(depth, image, useBodyPixModel,
-                          medianBlurKernelSize, gaussianBlurKernelSize, gpu=gpu) / 1000
-    
+                              medianBlurKernelSize, gaussianBlurKernelSize, gpu=gpu) / 1000
+
     # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
     # The size of this matrix will be (image height x image width, 3) where the 3 is for the u, v, and depth
     pixels = createPixelCoordinateMatrix(depthData, gpu=gpu)
@@ -369,17 +424,19 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     # For some reason, the x rotation is actually the y-rotation based off experiments. Guru believes it has to do with how the u and v coordinates are defined
     rotation_x = getRotationMatrix(0, np.deg2rad(rotation[1]), gpu=gpu)
     rotation_y = getRotationMatrix(1, np.deg2rad(rotation[0]), gpu=gpu)
-    
+
     # The translation is set to 0 always. Autotranslation is done after cv2.projectPoints
     if gpu:
         translation = cp.array([0., 0., 0.])
     else:
         translation = np.array([0., 0., 0.])
-        
+
     # Calculate the world coordinates of the pixels
-    worldGrid = calculateWorldCoordinates(pixels, cameraIntrinsicMatrix, gpu=gpu)
-    
-    projectedImage = projectPoints(worldGrid, rotation_x.dot(rotation_y), translation, cameraIntrinsicMatrix, distortionCoefficients, gpu=gpu)
+    worldGrid = calculateWorldCoordinates(
+        pixels, cameraIntrinsicMatrix, gpu=gpu)
+
+    projectedImage = projectPoints(worldGrid, rotation_x.dot(
+        rotation_y), translation, cameraIntrinsicMatrix, distortionCoefficients, gpu=gpu)
     del worldGrid
 
     # If autoTranslate is true, then we should apply it to the image
@@ -417,14 +474,19 @@ def projectPoints(worldGrid, rotationMatrix, translation, cameraIntrinsicMatrix,
 
         # Apply distortion coeficients
         rSquared = projectedImage[0, :] ** 2 + projectedImage[1, :] ** 2
-        distortionNumerator = 1 + k1 * rSquared + k2 * rSquared ** 2 + k3 * rSquared ** 3
-        distortionDenominator = 1 + k4 * rSquared + k5 * rSquared ** 2 + k6 * rSquared ** 3
-        projectedImage[0, :] = cx + fx * (distortionNumerator * projectedImage[0, :] / distortionDenominator) + (2 * p1 * projectedImage[0, :] * projectedImage[1, :]) + p2
-        projectedImage[1, :] = cy + fy * (distortionNumerator * projectedImage[1, :] / distortionDenominator) + (p1 * (rSquared + 2 * projectedImage[1, :] ** 2)) + (2 * p2 * projectedImage[0, :] * projectedImage[1, :])
+        distortionNumerator = 1 + k1 * rSquared + \
+            k2 * rSquared ** 2 + k3 * rSquared ** 3
+        distortionDenominator = 1 + k4 * rSquared + \
+            k5 * rSquared ** 2 + k6 * rSquared ** 3
+        projectedImage[0, :] = cx + fx * (distortionNumerator * projectedImage[0, :] /
+                                          distortionDenominator) + (2 * p1 * projectedImage[0, :] * projectedImage[1, :]) + p2
+        projectedImage[1, :] = cy + fy * (distortionNumerator * projectedImage[1, :] / distortionDenominator) + (
+            p1 * (rSquared + 2 * projectedImage[1, :] ** 2)) + (2 * p2 * projectedImage[0, :] * projectedImage[1, :])
 
     else:
         projectedImage = homogenize3DCoordinates(projectedImage)
         projectedImage = projectedImage[:-1, :]
-        projectedImage = applyDistortion(projectedImage, k1, k2, k3, k4, k5, k6, p1, p2, fx, cx, fy, cy)
-        
+        projectedImage = applyDistortion(
+            projectedImage, k1, k2, k3, k4, k5, k6, p1, p2, fx, cx, fy, cy)
+
     return projectedImage.transpose()
