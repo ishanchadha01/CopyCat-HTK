@@ -400,7 +400,7 @@ def getRotationMatrix(basis, angle, gpu=False):
     return R
 
 
-def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoefficients, useBodyPixModel, medianBlurKernelSize, gaussianBlurKernelSize, autoTranslate, pointForAutoTranslate, gpu=False) -> np.ndarray:
+def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoefficients, useBodyPixModel, medianBlurKernelSize, gaussianBlurKernelSize, autoTranslate, pointForAutoTranslate, useOpenCVProjectPoints=False, gpu=False) -> np.ndarray:
     """augmentFrame rotates the current frame by the given rotation
     Arguments:
         image {np.ndarray} -- RGB image of the current frame
@@ -435,8 +435,16 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     worldGrid = calculateWorldCoordinates(
         pixels, cameraIntrinsicMatrix, gpu=gpu)
 
-    projectedImage = projectPoints(worldGrid, rotation_x.dot(
-        rotation_y), translation, cameraIntrinsicMatrix, distortionCoefficients, gpu=gpu)
+    if useOpenCVProjectPoints:
+        # Project the world coordinates to the image plane
+        rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
+        projectedImage, _ = cv2.projectPoints(
+            worldGrid, rotationRodrigues, translation, cameraIntrinsicMatrix, distortionCoefficients)
+        projectedImage = projectedImage[:, 0, :]
+    else:
+        projectedImage = projectPoints(worldGrid, rotation_x.dot(
+            rotation_y), translation, cameraIntrinsicMatrix, distortionCoefficients, gpu=gpu)
+        
     del worldGrid
 
     # If autoTranslate is true, then we should apply it to the image

@@ -24,7 +24,7 @@ class DataAugmentation():
     except:
         pass
 
-    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numJobs=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useGpu=False, exportVideo=False):
+    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numJobs=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, useGpu=False, exportVideo=False):
         """__init__ initialized the Data Augmentation object with the required parameters
 
         Arguments:
@@ -94,8 +94,15 @@ class DataAugmentation():
         self.outputPath = outputPath
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
-        self.useGpu = useGpu
         self.exportVideo = exportVideo
+        
+        if useOpenCVProjectPoints and useGpu:
+            print("Cannot use GPU with OpenCV Project Points. Setting useGpu to False...")
+            self.useOpenCVProjectPoints = useOpenCVProjectPoints
+            self.useGpu = False
+        else:
+            self.useOpenCVProjectPoints = False
+            self.useGpu = True
 
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
@@ -268,6 +275,7 @@ class DataAugmentation():
                 gaussianBlurKernelSize=self.gaussianBlurKernelSize,
                 autoTranslate=self.autoTranslate,
                 pointForAutoTranslate=self.pointForAutoTranslate,
+                useOpenCVProjectPoints=self.useOpenCVProjectPoints,
                 gpu=False
             ),
             allImages,

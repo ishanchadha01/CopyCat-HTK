@@ -300,6 +300,7 @@ def main():
     parser.add_argument('--pointForAutoTranslateX', type=int, default=3840 // 2)
     parser.add_argument('--pointForAutoTranslateY', type=int, default=2160 // 2)
     parser.add_argument('--exportVideo', type=bool, default=False)
+    parser.add_argument('--useOpenCVProjectPoints', type=bool, default=False)
     parser.add_argument('--useGpu', type=bool, default=False)
 
     args = parser.parse_args()
@@ -317,6 +318,7 @@ def main():
         print("Auto translate:", args.autoTranslate)
         print("Point for auto translate:", args.pointForAutoTranslateX, args.pointForAutoTranslateY)
         print("Export video:", args.exportVideo)
+        print("Use opencv project points:", args.useOpenCVProjectPoints)
         print("Use GPU:", args.useGpu)
         args.rotationsX = [int(x) for x in args.rotationsX.split("_")]
         args.rotationsY = [int(x) for x in args.rotationsY.split("_")]
@@ -325,6 +327,7 @@ def main():
         args.bodypix_model = int(args.bodypix_model)
         args.autoTranslate = bool(args.autoTranslate)
         args.exportVideo = bool(args.exportVideo)
+        args.useOpenCVProjectPoints = bool(args.useOpenCVProjectPoints)
         args.useGpu = bool(args.useGpu)
         # The Data augmentation object does all the bounds checking, so you dont have to worry about that
         da = DataAugmentation(
@@ -337,6 +340,7 @@ def main():
             autoTranslate=args.autoTranslate,
             numJobs=args.parallel_jobs,
             exportVideo=args.exportVideo,
+            useOpenCVProjectPoints=args.useOpenCVProjectPoints,
             useGpu=args.useGpu
         )
         # listOfAugmentedVideos is a list of strings of the locations of all the augmented videos
