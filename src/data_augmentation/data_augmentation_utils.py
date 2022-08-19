@@ -464,7 +464,6 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
 
 
 def projectPoints(worldGrid, rotationMatrix, translation, cameraIntrinsicMatrix, distortionCoefficients, gpu=False):
-
     # Extract constants from the cameraIntrinsicMatrix and distortionCoefficients
     k1, k2, p1, p2, k3, k4, k5, k6 = distortionCoefficients
     fx = cameraIntrinsicMatrix[0, 0]

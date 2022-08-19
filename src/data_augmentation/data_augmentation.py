@@ -377,3 +377,28 @@ class DataAugmentation():
 
         # Return these minimum rotations
         return min_v_0, min_v_2160, min_u_0, min_u_3840
+
+# This is used to test the speed of data augmentation on a single video
+if __name__ == '__main__':
+    import time
+    from pprint import pprint
+    
+    dataset_path = "/data/TestDataAug/test_videos"
+    
+    times = {}
+    for proc in range(1, 32 + 1):
+        da = DataAugmentation(
+            rotationsX=[-5],
+            rotationsY=[-5],
+            datasetFolder=dataset_path, 
+            outputPath=f'{dataset_path}/augmentations',
+            gpu=False,
+            numJobs=proc
+        )
+        start = time.perf_counter()
+        da.createDataAugmentedVideos()
+        end = time.perf_counter()
+        times[proc] = end - start
+    
+    pprint(times)
+        
