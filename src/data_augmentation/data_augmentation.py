@@ -84,7 +84,8 @@ class DataAugmentation():
 
         # [combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.rotations = list(product(rotationsX, rotationsY))
-        self.rotations.remove((0, 0))
+        if 0 in rotationsX and 0 in rotationsY:
+            self.rotations.remove((0, 0))
 
         self.datasetFolder = datasetFolder
         self.numJobs = numJobs
@@ -101,8 +102,9 @@ class DataAugmentation():
             self.useOpenCVProjectPoints = useOpenCVProjectPoints
             self.useGpu = False
         else:
-            self.useOpenCVProjectPoints = False
-            self.useGpu = True
+            self.useOpenCVProjectPoints = useOpenCVProjectPoints
+            self.useGpu = useGpu
+
 
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
@@ -199,7 +201,7 @@ class DataAugmentation():
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
         # Get the video name and user to create progress bar
-        videoName, user = self.getVideoNameAndUser(video)
+        videoName, user = extractVideoNameAndUser(video)
 
         # Extract the camera calibrations used in cv2.projectPoints
         intrinsicCameraMatrix = getCameraIntrinsicMatrix(video)
@@ -235,7 +237,7 @@ class DataAugmentation():
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
         # Get the video name and user to create progress bar
-        videoName, user = self.getVideoNameAndUser(video)
+        videoName, user = extractVideoNameAndUser(video)
 
         # Extract the camera calibrations used in cv2.projectPoints
         intrinsicCameraMatrix = cp.asarray(getCameraIntrinsicMatrix(video))
@@ -377,28 +379,4 @@ class DataAugmentation():
 
         # Return these minimum rotations
         return min_v_0, min_v_2160, min_u_0, min_u_3840
-
-# This is used to test the speed of data augmentation on a single video
-if __name__ == '__main__':
-    import time
-    from pprint import pprint
-    
-    dataset_path = "/data/TestDataAug/test_videos"
-    
-    times = {}
-    for proc in range(1, 32 + 1):
-        da = DataAugmentation(
-            rotationsX=[-5],
-            rotationsY=[-5],
-            datasetFolder=dataset_path, 
-            outputPath=f'{dataset_path}/augmentations',
-            gpu=False,
-            numJobs=proc
-        )
-        start = time.perf_counter()
-        da.createDataAugmentedVideos()
-        end = time.perf_counter()
-        times[proc] = end - start
-    
-    pprint(times)
         

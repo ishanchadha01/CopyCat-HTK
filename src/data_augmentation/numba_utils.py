@@ -2,10 +2,6 @@ import numpy as np
 from numba import njit
 
 @njit(cache=True, parallel=True)
-def asType(arr, dtype):
-    return arr.astype(dtype)
-
-@njit(cache=True, parallel=True)
 def roundArray(x):
     return np.rint(x)
 

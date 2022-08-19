@@ -39,8 +39,8 @@ def extractVideoNameAndUser(video: str) -> tuple:
     Returns:
         tuple -- the video name and user
     """
-    videoName = video.split('/')[-1][:-4]
-    user = video.split('/')[4].split('_')[1]
+    videoName = video.split('/')[-1]
+    user = video.split('/')[-1].split('_')[1]
     return videoName, user
 
 
@@ -123,8 +123,8 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
             with tf.device('/cpu:0'):
                 bodypixModel = loadBodyPixelModel(useBodyPixModel)
                 result = bodypixModel.predict_single(image)
-                mask = asType(result.get_mask(
-                    threshold=0.5).numpy(), np.uint8)[:, :, 0]
+                mask = result.get_mask(
+                    threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
 
         body = depthMap[mask == 1]
         body = cv2.dilate(body, np.ones((5, 5), np.uint8), iterations=1)[:, 0]
@@ -301,8 +301,8 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
         original_pixels = applyMask(originalPixels, mask_image_grid_cv)
 
         # Convert both arrays to integer values because integer values are needed for NumPy slicing
-        image_grid_cv = asType(roundArray(image_grid_cv), 'int')
-        original_pixels = asType(roundArray(original_pixels), 'int')
+        image_grid_cv = roundArray(image_grid_cv).astype('int')
+        original_pixels = roundArray(original_pixels).astype('int')
 
         # Copy the values from old to new
         newImage[image_grid_cv[:, 0], image_grid_cv[:, 1],
