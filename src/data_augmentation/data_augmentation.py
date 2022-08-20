@@ -24,7 +24,7 @@ class DataAugmentation():
     except:
         pass
 
-    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numJobs=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, useGpu=False, exportVideo=False):
+    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numJobs=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, useGpu=False, exportVideo=False, disablePBar=False, deletePreviousAugs=False):
         """__init__ initialized the Data Augmentation object with the required parameters
 
         Arguments:
@@ -56,9 +56,10 @@ class DataAugmentation():
             os.makedirs(outputPath)
 
         # Delete the previous augmentations before making new ones
-        if os.path.exists(outputPath):
-            os.system(f'rm -rf {outputPath}')
-        os.makedirs(outputPath)
+        if deletePreviousAugs:
+            if os.path.exists(outputPath):
+                os.system(f'rm -rf {outputPath}')
+            os.makedirs(outputPath)
 
         # If the x or y angle is negative or greater than 90, raise an error
         for x, y in zip(rotationsX, rotationsY):
@@ -96,6 +97,7 @@ class DataAugmentation():
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
         self.exportVideo = exportVideo
+        self.disablePBar = disablePBar
         
         if useOpenCVProjectPoints and useGpu:
             print("Cannot use GPU with OpenCV Project Points. Setting useGpu to False...")
@@ -183,7 +185,10 @@ class DataAugmentation():
 
         rotationName = f"rotation({rotation[0]},{rotation[1]})"
         fullRotationName = f"{rotationName}-autoTranslate({self.autoTranslate})-pointForAutoTranslate({self.pointForAutoTranslate[0]},{self.pointForAutoTranslate[1]})"
-        currJSONPath = f'{self.outputPath}/{fullRotationName}-{user}-{videoName}.json'
+        if self.useOpenCVProjectPoints:
+            currJSONPath = f'{self.outputPath}/{fullRotationName}-{user}-{videoName}-OpenCVProjectPoints.json'
+        else:
+            currJSONPath = f'{self.outputPath}/{fullRotationName}-{user}-{videoName}.json'
 
         return currJSONPath
 
@@ -283,7 +288,8 @@ class DataAugmentation():
             allImages,
             allDepth,
             num_cpus=self.numJobs,
-            desc=f"{user}-{videoName}-CPU"
+            desc=f"{user}-{videoName}-CPU",
+            disable=self.disablePBar
         )
         return augmentedFrames
 
@@ -294,7 +300,7 @@ class DataAugmentation():
         videoFramesFiles = np.load(f"{video}.npz").files
         total_frames = int((len(videoFramesFiles) - 2) / 2)
         augmentedFrames = []
-        for frame_no in tqdm(range(total_frames), desc=f"{user}-{videoName}-GPU"):
+        for frame_no in tqdm(range(total_frames), desc=f"{user}-{videoName}-GPU", disable=self.disablePBar):
             depthFrame = videoFrames[f'DepthFrame{frame_no}']
             colorFrame = videoFrames[f'ColorFrame{frame_no}']
             augmentedFrames.append(

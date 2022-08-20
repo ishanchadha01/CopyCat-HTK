@@ -81,9 +81,12 @@ def countFrames(video) -> int:
 
 
 def exportVideo(video, currJSONPath, augmentedFrames):
-    originalVideo = cv2.VideoCapture(video)
-    codec = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
-    fps = countFrames(video)
+    try:
+        originalVideo = cv2.VideoCapture(video)
+        codec = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
+        fps = countFrames(video)
+    except:
+        fps = 20
     frameWidth = int(originalVideo.get(3))
     frameHeight = int(originalVideo.get(4))
 
