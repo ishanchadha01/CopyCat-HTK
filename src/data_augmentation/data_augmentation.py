@@ -25,7 +25,7 @@ class DataAugmentation():
     except:
         pass
 
-    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False):
+    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False, deletePreviousAugs=True, disablePBar=False):
         """__init__ initialized the Data Augmentation object with the required parameters
 
         Arguments:
@@ -57,9 +57,10 @@ class DataAugmentation():
             os.makedirs(outputPath)
 
         # Delete the previous augmentations before making new ones
-        if os.path.exists(outputPath):
-            os.system(f'rm -rf {outputPath}')
-        os.makedirs(outputPath)
+        if deletePreviousAugs:
+            if os.path.exists(outputPath):
+                os.system(f'rm -rf {outputPath}')
+            os.makedirs(outputPath)
 
         # If the x or y angle is negative or greater than 90, raise an error
         for x, y in zip(rotationsX, rotationsY):
@@ -88,7 +89,8 @@ class DataAugmentation():
 
         # [combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.rotations = list(product(rotationsX, rotationsY))
-        self.rotations.remove((0, 0))
+        if 0 in rotationsX and 0 in rotationsY:
+            self.rotations.remove((0, 0))
 
         self.datasetFolder = datasetFolder
         self.numCpu = numCpu
@@ -99,6 +101,7 @@ class DataAugmentation():
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
         self.exportVideo = exportVideo
+        self.disablePBar = disablePBar
         
         if useOpenCVProjectPoints and numGpu > 0:
             print("Cannot use GPU with OpenCV Project Points. Setting useGpu to False...")
@@ -196,7 +199,10 @@ class DataAugmentation():
 
         rotationName = f"rotation({rotation[0]},{rotation[1]})"
         fullRotationName = f"{rotationName}-autoTranslate({self.autoTranslate})-pointForAutoTranslate({self.pointForAutoTranslate[0]},{self.pointForAutoTranslate[1]})"
-        currJSONPath = f'{self.outputPath}/{fullRotationName}-{user}-{videoName}.json'
+        if self.useOpenCVProjectPoints:
+            currJSONPath = f'{self.outputPath}/{fullRotationName}-{user}-{videoName}-OpenCVProjectPoints.json'
+        else:
+            currJSONPath = f'{self.outputPath}/{fullRotationName}-{user}-{videoName}.json'
 
         return currJSONPath
 
@@ -214,7 +220,7 @@ class DataAugmentation():
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
         # Get the video name and user to create progress bar
-        videoName, user = self.getVideoNameAndUser(video)
+        videoName, user = extractVideoNameAndUser(video)
 
         # Extract the camera calibrations used in cv2.projectPoints
         intrinsicCameraMatrix = getCameraIntrinsicMatrix(video)
@@ -250,7 +256,7 @@ class DataAugmentation():
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
         # Get the video name and user to create progress bar
-        videoName, user = self.getVideoNameAndUser(video)
+        videoName, user = extractVideoNameAndUser(video)
 
         # Extract the camera calibrations used in cv2.projectPoints
         intrinsicCameraMatrix = cp.asarray(getCameraIntrinsicMatrix(video))
