@@ -10,6 +10,7 @@ from tqdm import tqdm  # Ensure that version is 4.51.0 to allow for nested progr
 from p_tqdm import p_map
 from .data_augmentation_utils import *
 from .calc_min_rotations import *
+from torch.multiprocessing import Pool
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
@@ -24,7 +25,7 @@ class DataAugmentation():
     except:
         pass
 
-    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numJobs=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, useGpu=False, exportVideo=False):
+    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False):
         """__init__ initialized the Data Augmentation object with the required parameters
 
         Arguments:
@@ -78,6 +79,9 @@ class DataAugmentation():
         if pointForAutoTranslate[0] > 3840 or pointForAutoTranslate[1] > 2160 or pointForAutoTranslate[0] < 0 or pointForAutoTranslate[1] < 0:
             raise ValueError(
                 'Point for auto translate must be within the bounds of the image')
+        
+        if numGpu <= 0 and numCpu <= 0:
+            raise ValueError('numGpu or numCpu must be greater than 0 but both are set to 0')
 
         # Initializing Mediapipe (so you don't get repeating log messages saying "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")
         extract_mediapipe_features(frames=None, save_filepath=None, num_jobs=0)
@@ -87,7 +91,7 @@ class DataAugmentation():
         self.rotations.remove((0, 0))
 
         self.datasetFolder = datasetFolder
-        self.numJobs = numJobs
+        self.numCpu = numCpu
         self.medianBlurKernelSize = medianBlurKernelSize
         self.gaussianBlurKernelSize = gaussianBlurKernelSize
         self.useBodyPixModel = useBodyPixModel
@@ -96,13 +100,13 @@ class DataAugmentation():
         self.pointForAutoTranslate = pointForAutoTranslate
         self.exportVideo = exportVideo
         
-        if useOpenCVProjectPoints and useGpu:
+        if useOpenCVProjectPoints and numGpu > 0:
             print("Cannot use GPU with OpenCV Project Points. Setting useGpu to False...")
             self.useOpenCVProjectPoints = useOpenCVProjectPoints
-            self.useGpu = False
+            self.numGpu = 0
         else:
             self.useOpenCVProjectPoints = False
-            self.useGpu = True
+            self.numGpu = numGpu
 
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
@@ -149,27 +153,38 @@ class DataAugmentation():
         combinationList = [(video, rotation)
                            for video in self.listOfVideos for rotation in self.rotations]
 
-        if self.useGpu:
-            threadCpu = None
-            threadGpu = None
+        if self.numGpu > 0 and self.numCpu > 0:
+            threadCpu = []
+            threadGpu = []
             while len(combinationList) > 0:
-                if threadCpu is None or not threadCpu.is_alive():
+                if len(threadCpu) < self.numCpu:
                     video, rotation = combinationList.pop()
-                    threadCpu = mp.Process(
-                        target=self.augmentVideoCPU, args=(video, rotation))
-                    threadCpu.start()
+                    threadCpu.append(mp.Process(
+                        target=self.augmentVideoCPU, args=(video, rotation, False)))
+                    threadCpu[-1].start()
                     newJSONs.append(self.getNewJsonName(video, rotation))
                     self.pbarAllVideosRotations.update(1)
-                if threadGpu is None or not threadGpu.is_alive():
+                if len(threadGpu) != self.numGpu:
                     video, rotation = combinationList.pop()
-                    threadGpu = mp.Process(
-                        target=self.augmentVideoGPU, args=(video, rotation))
-                    threadGpu.start()
+                    threadGpu.append(mp.Process(
+                        target=self.augmentVideoGPU, args=(video, rotation)))
+                    threadGpu[-1].start()
                     newJSONs.append(self.getNewJsonName(video, rotation))
                     self.pbarAllVideosRotations.update(1)
-        else:
+                for gpu in threadGpu:
+                    if not gpu.is_alive():
+                        threadGpu.remove(gpu)
+                for cpu in threadCpu:
+                    if not cpu.is_alive():
+                        threadCpu.remove(cpu)
+        elif self.numGpu > 0 and self.numCpu == 0: 
+            self.usingImapUnordered = True    
+            with Pool(processes=self.numGpu) as pool:
+                newJSONs = pool.imap_unordered(self.augmentVideoGPU, combinationList)
+                newJSONs = [json for json in newJSONs]
+        else: # Using only CPU
             for video, rotation in combinationList:
-                self.augmentVideoCPU(video, rotation)
+                self.augmentVideoCPU(video, rotation, usePtqdm=True)
                 newJSONs.append(self.getNewJsonName(video, rotation))
                 self.pbarAllVideosRotations.update(1)
 
@@ -185,7 +200,7 @@ class DataAugmentation():
 
         return currJSONPath
 
-    def augmentVideoCPU(self, video, rotation) -> str:
+    def augmentVideoCPU(self, video, rotation, usePtqdm=True) -> str:
         """augmentVideo augments a video with a given rotation
 
         Arguments:
@@ -209,14 +224,14 @@ class DataAugmentation():
 
         # If the augmented video exists, then there's no need to run data augmentation again. Only do this if the augmented video does not exist
         augmentedFrames = self.augmentFrameCPU(
-            video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients)
+            video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients, usePtqdm=usePtqdm)
 
         if self.exportVideo:
             exportVideo(video, currJSONPath, augmentedFrames)
 
         # Extract the mediapipe features for every frame
         extract_mediapipe_features(
-            augmentedFrames, currJSONPath, num_jobs=self.numJobs, normalize_xy=True)
+            augmentedFrames, currJSONPath, num_jobs=self.numCpu, normalize_xy=True)
 
         return currJSONPath
 
@@ -252,37 +267,62 @@ class DataAugmentation():
 
         # Extract the mediapipe features for every frame
         extract_mediapipe_features(
-            augmentedFrames, currJSONPath, num_jobs=self.numJobs, normalize_xy=True)
+            augmentedFrames, currJSONPath, num_jobs=self.numCpu, normalize_xy=True)
+
+        if self.usingImapUnordered:
+            self.pbarAllVideosRotations.update(1)
 
         return currJSONPath
 
-    def augmentFrameCPU(self, video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients) -> list:
+    def augmentFrameCPU(self, video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients, usePtqdm=True) -> list:
         videoFrames = np.load(f"{video}.npz")
         if videoFrames['DepthFrame0'].shape[0] < 2160:
             return None
-        allImages = [videoFrames[image] for image in getColorFrames(video)]
-        allDepth = [videoFrames[depth] for depth in getDepthFrames(video)]
-
+        
         # Parallelize the frame augmentation process to speed up the process
-        augmentedFrames = p_map(
-            partial(
-                augmentFrame,
-                rotation=rotation,
-                cameraIntrinsicMatrix=intrinsicCameraMatrix,
-                distortionCoefficients=distortionCoefficients,
-                useBodyPixModel=self.useBodyPixModel,
-                medianBlurKernelSize=self.medianBlurKernelSize,
-                gaussianBlurKernelSize=self.gaussianBlurKernelSize,
-                autoTranslate=self.autoTranslate,
-                pointForAutoTranslate=self.pointForAutoTranslate,
-                useOpenCVProjectPoints=self.useOpenCVProjectPoints,
-                gpu=False
-            ),
-            allImages,
-            allDepth,
-            num_cpus=self.numJobs,
-            desc=f"{user}-{videoName}-CPU"
-        )
+        if usePtqdm:
+            allImages = [videoFrames[image] for image in getColorFrames(video)]
+            allDepth = [videoFrames[depth] for depth in getDepthFrames(video)]
+            augmentedFrames = p_map(
+                partial(
+                    augmentFrame,
+                    rotation=rotation,
+                    cameraIntrinsicMatrix=intrinsicCameraMatrix,
+                    distortionCoefficients=distortionCoefficients,
+                    useBodyPixModel=self.useBodyPixModel,
+                    medianBlurKernelSize=self.medianBlurKernelSize,
+                    gaussianBlurKernelSize=self.gaussianBlurKernelSize,
+                    autoTranslate=self.autoTranslate,
+                    pointForAutoTranslate=self.pointForAutoTranslate,
+                    useOpenCVProjectPoints=self.useOpenCVProjectPoints,
+                    gpu=False
+                ),
+                allImages,
+                allDepth,
+                num_cpus=self.numCpu,
+                desc=f"{user}-{videoName}-CPU"
+            )
+        else:
+            videoFrames = np.load(f"{video}.npz")
+            totalFrames = int((len(videoFrames.files) - 2) / 2)
+            for frame_no in tqdm(range(totalFrames), desc=f"{user}-{videoName}-CPU"):
+                depthFrame = videoFrames[f'DepthFrame{frame_no}']
+                colorFrame = videoFrames[f'ColorFrame{frame_no}']
+                augmentedFrames.append(
+                    augmentFrame(
+                        colorFrame,
+                        depthFrame,
+                        rotation=rotation,
+                        cameraIntrinsicMatrix=intrinsicCameraMatrix,
+                        distortionCoefficients=distortionCoefficients,
+                        useBodyPixModel=self.useBodyPixModel,
+                        medianBlurKernelSize=self.medianBlurKernelSize,
+                        gaussianBlurKernelSize=self.gaussianBlurKernelSize,
+                        autoTranslate=self.autoTranslate,
+                        pointForAutoTranslate=self.pointForAutoTranslate,
+                        gpu=True
+                    )
+                )
         return augmentedFrames
 
     def augmentFrameGPU(self, video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients) -> list:
@@ -290,9 +330,9 @@ class DataAugmentation():
         if videoFrames['DepthFrame0'].shape[0] < 2160:
             return None
         videoFramesFiles = np.load(f"{video}.npz").files
-        total_frames = int((len(videoFramesFiles) - 2) / 2)
+        totalFrames = int((len(videoFramesFiles) - 2) / 2)
         augmentedFrames = []
-        for frame_no in tqdm(range(total_frames), desc=f"{user}-{videoName}-GPU"):
+        for frame_no in tqdm(range(totalFrames), desc=f"{user}-{videoName}-GPU"):
             depthFrame = videoFrames[f'DepthFrame{frame_no}']
             colorFrame = videoFrames[f'ColorFrame{frame_no}']
             augmentedFrames.append(
@@ -326,7 +366,7 @@ class DataAugmentation():
         cameraIntrinsicMatrices = []
         for video in tqdm(self.listOfVideos, desc="Collecting Pose Features"):
             currPoseFeatures, cameraIntrinsicMatrix = get3DMediapipeCoordinates(
-                video, self.numJobs)
+                video, self.numCpu)
             poseFeatures.append(currPoseFeatures)
             cameraIntrinsicMatrices.append(cameraIntrinsicMatrix)
 
@@ -393,7 +433,7 @@ if __name__ == '__main__':
             datasetFolder=dataset_path, 
             outputPath=f'{dataset_path}/augmentations',
             gpu=False,
-            numJobs=proc
+            numCpu=proc
         )
         start = time.perf_counter()
         da.createDataAugmentedVideos()

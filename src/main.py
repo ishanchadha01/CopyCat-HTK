@@ -1,22 +1,22 @@
 """Main file used to prepare training data, train, and test HMMs.
-    HMM EX = python3 driver.py --test_type standard --train_iters 25 50 --users Naoki --hmm_insertion_penalty -70
-    SBHMM EX = python3 driver.py --test_type standard --users Naoki --train_iters 25 50 --sbhmm_iters 25 50 --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --include_word_position --parallel_classifier_training --parallel_jobs 4 --hmm_insertion_penalty -70 --sbhmm_insertion_penalty -115
+    HMM EX = python3 driver.py --test_type standard --train_iters 25 50 --users p1 --hmm_insertion_penalty -70
+    SBHMM EX = python3 driver.py --test_type standard --users p1 --train_iters 25 50 --sbhmm_iters 25 50 --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --include_word_position --parallel_classifier_training --parallel_jobs 4 --hmm_insertion_penalty -70 --sbhmm_insertion_penalty -115
 """
 """Main file used to prepare training data, train, and test HMMs.
-    HMM EX = python3 driver.py --test_type standard --train_iters 25 50 75 100 --users Prerna Linda | 
-    HMM CV = python3 driver.py --test_type cross_val --train_iters 25 50 75 100 120 140 160 --users 02-22-20_Prerna_Android 04-29-20_Linda_Android 07-24-20_Matthew_4K --cross_val_method stratified --n_splits 10 --cv_parallel --parallel_jobs 10  --hmm_insertion_penalty -80
-    SBHMM EX = python3 driver.py --test_type standard --train_iters 25 50 75 --sbhmm_iters 25 50 75 --users Prerna Linda --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --include_word_position --parallel_classifier_training --parallel_jobs 4 --hmm_insertion_penalty -70 --sbhmm_insertion_penalty -115 --neighbors 70
-    SBHMM CV = python3 driver.py --test_type cross_val --train_iters 25 50 75 --sbhmm_iters 25 50 75 --users Linda Prerna --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --include_word_position --parallel_classifier_training --parallel_jobs 4 --hmm_insertion_penalty -85 --sbhmm_insertion_penalty -85 --neighbors 70 --cross_val_method kfold --n_splits 10 --beam_threshold 2000.0
-    SBHMM CV Parallel = python3 driver.py --test_type cross_val --train_iters 25 50 75 100 120 140 160 --sbhmm_iters 25 50 75 100 --users Ishan Matthew David --train_sbhmm --sbhmm_cycles 1  --include_word_level_states --include_word_level_states --parallel_classifier_training --hmm_insertion_penalty -80 --sbhmm_insertion_penalty -80 --neighbors 73 --cross_val_method stratified --n_splits 5 --beam_threshold 3000.0 --cv_parallel --parallel_jobs 10
-    Prepare Data = python3 driver.py --test_type none --prepare_data --users Matthew_4 Ishan_4 David_4
-    Old SBHMM CV = python3 driver.py --test_type cross_val --train_iters 25 50 75 100 120 140 160 --sbhmm_iters 25 50 75 100 --users Ishan Matthew David --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --parallel_classifier_training --hmm_insertion_penalty -80 --sbhmm_insertion_penalty -80 --cross_val_method stratified --n_splits 5 --beam_threshold 3000.0 --cv_parallel --parallel_jobs 5 --multiple_classifiers
-    SBHMM CV Parallel User Independent =  python3 driver.py --test_type cross_val --train_iters 25 50 75 100 120 140 160 180 200 220 240 --sbhmm_iters 25 50 75 100 --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --include_word_position --parallel_classifier_training --hmm_insertion_penalty 150 --sbhmm_insertion_penalty 150 --neighbors 200 --cross_val_method leave_one_user_out --n_splits 5 --beam_threshold 50000.0 --cv_parallel --parallel_jobs 7 --users Linda_4 Kanksha_4 Thad_4 Matthew_4 Prerna_4 David_4 Ishan_4
+    HMM EX = python3 driver.py --test_type standard --train_iters 25 50 75 100 --users p1 p2 | 
+    HMM CV = python3 driver.py --test_type cross_val --train_iters 25 50 75 100 120 140 160 --users p1 p2 p3 --cross_val_method stratified --n_splits 10 --cv_parallel --parallel_jobs 10  --hmm_insertion_penalty -80
+    SBHMM EX = python3 driver.py --test_type standard --train_iters 25 50 75 --sbhmm_iters 25 50 75 --users p1 p2 --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --include_word_position --parallel_classifier_training --parallel_jobs 4 --hmm_insertion_penalty -70 --sbhmm_insertion_penalty -115 --neighbors 70
+    SBHMM CV = python3 driver.py --test_type cross_val --train_iters 25 50 75 --sbhmm_iters 25 50 75 --users p1 p2 --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --include_word_position --parallel_classifier_training --parallel_jobs 4 --hmm_insertion_penalty -85 --sbhmm_insertion_penalty -85 --neighbors 70 --cross_val_method kfold --n_splits 10 --beam_threshold 2000.0
+    SBHMM CV Parallel = python3 driver.py --test_type cross_val --train_iters 25 50 75 100 120 140 160 --sbhmm_iters 25 50 75 100 --users p1 p2 p3 --train_sbhmm --sbhmm_cycles 1  --include_word_level_states --include_word_level_states --parallel_classifier_training --hmm_insertion_penalty -80 --sbhmm_insertion_penalty -80 --neighbors 73 --cross_val_method stratified --n_splits 5 --beam_threshold 3000.0 --cv_parallel --parallel_jobs 10
+    Prepare Data = python3 driver.py --test_type none --prepare_data --users p1 p2 p3
+    Old SBHMM CV = python3 driver.py --test_type cross_val --train_iters 25 50 75 100 120 140 160 --sbhmm_iters 25 50 75 100 --users p1 p2 p3 --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --parallel_classifier_training --hmm_insertion_penalty -80 --sbhmm_insertion_penalty -80 --cross_val_method stratified --n_splits 5 --beam_threshold 3000.0 --cv_parallel --parallel_jobs 5 --multiple_classifiers
+    SBHMM CV Parallel User Independent =  python3 driver.py --test_type cross_val --train_iters 25 50 75 100 120 140 160 180 200 220 240 --sbhmm_iters 25 50 75 100 --train_sbhmm --sbhmm_cycles 1 --include_word_level_states --include_word_position --parallel_classifier_training --hmm_insertion_penalty 150 --sbhmm_insertion_penalty 150 --neighbors 200 --cross_val_method leave_one_user_out --n_splits 5 --beam_threshold 50000.0 --cv_parallel --parallel_jobs 7 --users p1 p2 p3 p4 p5 p6 p7 p8
     HMM CV Parallel User Independent =  python3 driver.py --test_type cross_val --train_iters 25 50 75 100 120 140 160 180 200 220 240 --hmm_insertion_penalty 10 --cross_val_method leave_one_user_out --n_splits 5 --beam_threshold 50000.0 --cv_parallel --parallel_jobs 4
 """
 
 """Verification commands
-    HMM Standard (Dry run) = python3 driver.py --test_type standard --train_iters 10 20 --users Matthew --method verification
-    HMM CV = python3 driver.py --test_type cross_val --train_iters 10 --users 07-24-20_Matthew_4KDepth 11-08-20_Colby_4KDepth 11-08-20_Ishan_4KDepth --cross_val_method leave_one_user_out --n_splits 10 --cv_parallel --parallel_jobs 3  --hmm_insertion_penalty -80 --method verification --verification_method logistic_regression
+    HMM Standard (Dry run) = python3 driver.py --test_type standard --train_iters 10 20 --users p1 --method verification
+    HMM CV = python3 driver.py --test_type cross_val --train_iters 10 --users p1 p2 p3 --cross_val_method leave_one_user_out --n_splits 10 --cv_parallel --parallel_jobs 3  --hmm_insertion_penalty -80 --method verification
 """
 import sys
 import glob
@@ -34,12 +34,9 @@ from sklearn.model_selection import (
 
 sys.path.insert(0, '../../')
 from src.prepare_data import prepare_data
-from src.train import create_data_lists, train, trainSBHMM, get_logistic_regressor, get_neural_net_classifier
-from src.adapt import pua, adapt
-from src.utils import get_results, save_results, load_json, get_arg_groups, get_hresults_data
-from src.test import test, testSBHMM, verify_simple, return_average_ll_per_sign, return_ll_per_correct_and_one_off_sign, verify_zahoor, verify_classifier
-from src.utils.file_util import *
-from src.utils.cross_val_util import *
+from src.train import create_data_lists, train, trainSBHMM
+from src.utils import get_results, save_results, load_json, get_arg_groups
+from src.test import test, testSBHMM, verify_simple, return_average_ll_per_sign, verify_zahoor
 from joblib import Parallel, delayed
 from statistics import mean
 from src.data_augmentation import DataAugmentation
@@ -57,7 +54,6 @@ def returnUserDependentSplits(unique_users, htk_filepaths, test_size):
     splits = np.array(splits)
     return splits
 
-
 def copyFiles(fileNames: list, newFolder: str, originalFolder: str, ext: str):
     if os.path.exists(newFolder):
         shutil.rmtree(newFolder)
@@ -66,19 +62,8 @@ def copyFiles(fileNames: list, newFolder: str, originalFolder: str, ext: str):
     for currFile in fileNames:
         shutil.copyfile(os.path.join(originalFolder, currFile+ext), os.path.join(newFolder, currFile+ext))
 
-
 def get_user(filepath):
     return filepath.split('/')[-1].split('.')[0].split('_')[-2]
-
-
-def get_phrase_len(filepath):
-    return len(os.path.basename(filepath).split('.')[1].split('_'))
-
-
-def get_video(filepath):
-    extension = '.' + os.path.basename(filepath).split('.')[-1]
-    return os.path.basename(filepath).replace(extension, '')
-
 
 def crossValVerificationFold(train_data: list, test_data: list, args: object, fold: int):
     print(f"Current split = {str(fold)}. Current Test data Size = {len(test_data)}")
@@ -106,63 +91,25 @@ def crossValVerificationFold(train_data: list, test_data: list, args: object, fo
                     os.path.join(currDataFolder, "htk", i+".htk") for i in curr_test_files], args.phrase_len, fold)
 
         train(args.train_iters, args.mean, args.variance, args.transition_prob, fold=os.path.join(str(fold), ""))
-        if args.verification_method == "zahoor":
-            curr_average_ll_sign = return_average_ll_per_sign(args.end, args.hmm_insertion_penalty, 
-                                                            args.beam_threshold, fold=os.path.join(str(fold), ""))
-            if len(average_ll_per_sign) == 0:
-                average_ll_per_sign = curr_average_ll_sign
-            else:
-                for sign in average_ll_per_sign:
-                    average_ll_per_sign[sign] = np.concatenate((average_ll_per_sign[sign], curr_average_ll_sign[sign]), axis=None)
-
-        elif args.verification_method == "logistic_regression" or args.verification_method == "neural_net":
-            curr_average_ll_sign = return_ll_per_correct_and_one_off_sign(args.end, args.hmm_insertion_penalty, args.verification_method == "logistic_regression",
-                                                            args.beam_threshold, fold=os.path.join(str(fold), ""))
-            for data_set in curr_average_ll_sign:
-                if data_set not in average_ll_per_sign:
-                    average_ll_per_sign[data_set] = {}
-                for sign in curr_average_ll_sign[data_set]:
-                    if sign in average_ll_per_sign:
-                        average_ll_per_sign[data_set][sign] = np.concatenate((average_ll_per_sign[data_set][sign], curr_average_ll_sign[data_set][sign]), axis=0)
-                    else:
-                        average_ll_per_sign[data_set][sign] = np.array(curr_average_ll_sign[data_set][sign])
-            print(f"Signs in correct set = {str(len(average_ll_per_sign['correct']))} and signs in incorrect set = {str(len(average_ll_per_sign['incorrect']))}")
+        curr_average_ll_sign = return_average_ll_per_sign(args.end, args.hmm_insertion_penalty, 
+                                                        args.beam_threshold, fold=os.path.join(str(fold), ""))
+        if len(average_ll_per_sign) == 0:
+            average_ll_per_sign = curr_average_ll_sign
         else:
-            raise Exception("Please select correct verification method")
+            for sign in average_ll_per_sign:
+                average_ll_per_sign[sign] = np.concatenate((average_ll_per_sign[sign], curr_average_ll_sign[sign]), axis=None)
     
     # Save user independent log likelihoods
-    pickle.dump(average_ll_per_sign, open(os.path.join(currDataFolder, f"{test_user}_UI_loglikelihoods.pkl"), "wb"))
-    classifier = {}
-    if args.verification_method == "zahoor":
-        for sign in average_ll_per_sign:
-            classifier[sign] = [np.mean(average_ll_per_sign[sign]), np.std(average_ll_per_sign[sign])]
-    elif args.verification_method == "logistic_regression":
-        print("Training logistic regression classifier for each sign")
-        for sign in tqdm.tqdm(average_ll_per_sign["correct"]):
-            classifier[sign] = get_logistic_regressor(average_ll_per_sign["correct"][sign], average_ll_per_sign["incorrect"][sign], args.random_state)
-    elif args.verification_method == "neural_net":
-        print("Training neural net classifier for each sign")
-        for sign in tqdm.tqdm(average_ll_per_sign["correct"]):
-            classifier[sign] = get_neural_net_classifier(average_ll_per_sign["correct"][sign], average_ll_per_sign["incorrect"][sign], args.random_state)
+    pickle.dump(average_ll_per_sign, open(os.path.join(currDataFolder, f"{test_user}_correct_UI_loglikelihoods.pkl"), "wb"))
     
-    else:
-        raise Exception("Please select correct verification method")
-
+    for sign in average_ll_per_sign:
+        average_ll_per_sign[sign] = [np.mean(average_ll_per_sign[sign]), np.std(average_ll_per_sign[sign])]
     
     create_data_lists([os.path.join(currDataFolder, "htk", i+".htk") for i in trainFiles], [
                     os.path.join(currDataFolder, "htk", i+".htk") for i in testFiles], args.phrase_len, fold)
     train(args.train_iters, args.mean, args.variance, args.transition_prob, fold=os.path.join(str(fold), ""))
-    if args.verification_method == "zahoor":
-        positive, negative, false_positive, false_negative, test_log_likelihoods = verify_zahoor(args.end, args.hmm_insertion_penalty, classifier, 
+    positive, negative, false_positive, false_negative, test_log_likelihoods = verify_zahoor(args.end, args.hmm_insertion_penalty, average_ll_per_sign, 
                                                                         args.beam_threshold, fold=os.path.join(str(fold), ""))
-    elif args.verification_method == "logistic_regression":
-        positive, negative, false_positive, false_negative, test_log_likelihoods = verify_classifier(args.end, args.hmm_insertion_penalty, classifier, True, 
-                                                                        args.beam_threshold, fold=os.path.join(str(fold), ""))
-    elif args.verification_method == "neural_net":
-        positive, negative, false_positive, false_negative, test_log_likelihoods = verify_classifier(args.end, args.hmm_insertion_penalty, classifier, False,
-                                                                        args.beam_threshold, fold=os.path.join(str(fold), ""))
-    else:
-        raise Exception("Please select correct verification method")
 
     pickle.dump(test_log_likelihoods, open(os.path.join(currDataFolder, f"{test_user}_test_split_loglikelihoods.pkl"), "wb"))
 
@@ -173,11 +120,7 @@ def crossValVerificationFold(train_data: list, test_data: list, args: object, fo
 
     return positive, negative, false_positive, false_negative
     
-    
 def crossValFold(train_data: list, test_data: list, args: object, fold: int):
-    train_data = np.array(train_data)
-    np.random.seed(args.random_state)
-    np.random.shuffle(train_data)
     print(f"Current split = {str(fold)}. Current Test data Size = {len(test_data)}")
     ogDataFolder = "data"
     currDataFolder = os.path.join("data", str(fold))
@@ -217,45 +160,46 @@ def crossValFold(train_data: list, test_data: list, args: object, fold: int):
 
     return [results['error'], results['sentence_error'], results['insertions'], results['deletions']]
 
+    
+
 
 def main():
     
     parser = argparse.ArgumentParser()
     ############################## ARGUMENTS #####################################
-    # Important
+    #Important
     parser.add_argument('--prepare_data', action='store_true')
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_results_file', type=str,
                         default='all_results.json')
-    # ASK FOR DATASET PATHS @TODO
 
-    # Arguments for create_data_lists()
+    #Arguments for create_data_lists()
     parser.add_argument('--test_type', type=str, default='test_on_train',
-                        choices=['none', 'test_on_train', 'cross_val', 'standard', 'progressive_user_adaptive', 'adaptive_htk'])
+                        choices=['none', 'test_on_train', 'cross_val', 'standard'])
     parser.add_argument('--users', nargs='*', default=None)
     parser.add_argument('--cross_val_method', default='kfold', choices=['kfold',
                                                   'leave_one_phrase_out',
                                                   'stratified',
                                                   'leave_one_user_out',
-                                                  'user_dependent',
+                                                  'user_dependent'
                                                   ])
     parser.add_argument('--n_splits', type=int, default=10)
     parser.add_argument('--cv_parallel', action='store_true')
-    parser.add_argument('--parallel_jobs', default=os.cpu_count(), type=int)
+    parser.add_argument('--parallel_jobs', default=4, type=int)
     parser.add_argument('--test_size', type=float, default=0.1)
     parser.add_argument('--phrase_len', type=int, default=0)
-    parser.add_argument('--random_state', type=int, default=42) #The answer to life, the universe and everything
+    parser.add_argument('--random_state', type=int, default=42)
 
-    # Arguments for training
-    parser.add_argument('--train_iters', nargs='*', type=int, default=[2,3,4])
+    #Arguments for training
+    parser.add_argument('--train_iters', nargs='*', type=int, default=[20, 50, 80])
     parser.add_argument('--hmm_insertion_penalty', default=-10)
     parser.add_argument('--mean', type=float, default=0.0)
     parser.add_argument('--variance', type=float, default=0.00001)
     parser.add_argument('--transition_prob', type=float, default=0.6)
 
-    # Arguments for SBHMM
+    #Arguments for SBHMM
     parser.add_argument('--train_sbhmm', action='store_true')    
-    parser.add_argument('--sbhmm_iters', nargs='*', type=int, default=[2,3,4])
+    parser.add_argument('--sbhmm_iters', nargs='*', type=int, default=[20, 50, 80])
     parser.add_argument('--include_word_position', action='store_true')
     parser.add_argument('--include_word_level_states', action='store_true')
     parser.add_argument('--sbhmm_insertion_penalty', default=-10)
@@ -269,29 +213,14 @@ def main():
     parser.add_argument('--parallel_classifier_training', action='store_true')
     parser.add_argument('--beam_threshold', default=100000000.0)
 
-    # Arguments for testing
+    #Arguments for testing
     parser.add_argument('--start', type=int, default=-2)
     parser.add_argument('--end', type=int, default=-1)
     parser.add_argument('--method', default='recognition', 
                         choices=['recognition', 'verification'])
     parser.add_argument('--acceptance_threshold', default=-150)
-    parser.add_argument('--verification_method', default='zahoor', 
-                        choices=['zahoor', 'logistic_regression', 'neural_net'])
-
-    # Arguments for adaptation
-    parser.add_argument('--adapt_iters', nargs='*', type=int, default=[2,3,4])
-    parser.add_argument('--hmm_num', nargs='*', type=int, default=4)
-    parser.add_argument('--new_users', nargs='*', default=None)
     
     # Arguments for data augmentation
-    '''
-    1) Tell if data aug should be done
-    2) Ask for rotationsX, Y
-    3) Ask for dataset folder
-    4) Ask for bodypix model
-    6) autoTranslate=True
-    7) pointForAutoTranslate=(3840 // 2, 2160 //2)
-    '''
     parser.add_argument('--data_augmentation', action='store_true')
     parser.add_argument('--rotationsX', type=str, default="-5_0_5")
     parser.add_argument('--rotationsY', type=str, default="-5_0_5")
@@ -301,11 +230,11 @@ def main():
     parser.add_argument('--pointForAutoTranslateY', type=int, default=2160 // 2)
     parser.add_argument('--exportVideo', type=bool, default=False)
     parser.add_argument('--useOpenCVProjectPoints', type=bool, default=False)
-    parser.add_argument('--useGpu', type=bool, default=False)
+    parser.add_argument('--numGpu', type=int, default=0)
 
+    
     args = parser.parse_args()
     ########################################################################################
-    
     features_config = load_json('configs/features.json')
 
     #if args.users: args.users = [user.capitalize() for user in args.users]
@@ -328,7 +257,7 @@ def main():
         args.autoTranslate = bool(args.autoTranslate)
         args.exportVideo = bool(args.exportVideo)
         args.useOpenCVProjectPoints = bool(args.useOpenCVProjectPoints)
-        args.useGpu = bool(args.useGpu)
+        args.numGpu = int(args.numGpu)
         # The Data augmentation object does all the bounds checking, so you dont have to worry about that
         da = DataAugmentation(
             datasetFolder=features_config['raw_videos_dir'], 
@@ -338,27 +267,27 @@ def main():
             useBodyPixModel=args.bodypix_model, 
             pointForAutoTranslate=(args.pointForAutoTranslateX, args.pointForAutoTranslateY), 
             autoTranslate=args.autoTranslate,
-            numJobs=args.parallel_jobs,
+            numCpus=args.parallel_jobs,
             exportVideo=args.exportVideo,
             useOpenCVProjectPoints=args.useOpenCVProjectPoints,
-            useGpu=args.useGpu
+            useGpu=args.numGpu
         )
         # listOfAugmentedVideos is a list of strings of the locations of all the augmented videos
         da.createDataAugmentedVideos()
         
         # Prepare data for all the augmented videos
         prepare_data(features_config, args.users, args.parallel_jobs)
-        
-    
+
     cross_val_methods = {'kfold': (KFold, True),
                          'leave_one_phrase_out': (LeaveOneGroupOut(), True),
                          'stratified': (StratifiedKFold, True),
                          'leave_one_user_out': (LeaveOneGroupOut(), True),
-                         'user_dependent': (None, False),
+                         'user_dependent': (None, False)
                          }
     cvm = args.cross_val_method
     cross_val_method, use_groups = cross_val_methods[args.cross_val_method]
 
+    features_config = load_json('configs/features.json')
     all_results = {'features': features_config['selected_features'],
                    'average': {}}
                    
@@ -367,10 +296,9 @@ def main():
     else:
         hresults_file = f'hresults/res_hmm{args.train_iters[-1]-1}.txt'
 
-    if args.prepare_data and not args.test_type == 'progressive_user_adaptive' and not args.test_type == 'adaptive_htk':
+    if args.prepare_data:
         # this will include users in verification
-        print(args.users)
-        prepare_data(features_config, args.users, args.parallel_jobs)
+        prepare_data(features_config, args.users)
 
     if args.test_type == 'none':
         sys.exit()
@@ -483,6 +411,8 @@ def main():
         print(stats)
 
     elif args.test_type == 'cross_val':
+
+
         word_counts = []
         phrase_counts = []
         substitutions = 0
@@ -628,49 +558,6 @@ def main():
             all_results['average']['false_negative'] = false_negative
 
             print('Standard Train/Test Split Results')
-
-    elif args.test_type == 'progressive_user_adaptive':
-        all_results, stats = pua(args, features_config, all_results)
-
-    elif args.test_type == 'adaptive_htk':
-
-        #prepare_data(features_config, args.users)
-        # if not args.users:
-        #     htk_filepaths = glob.glob('data/htk/*htk')
-        # else:
-        #     htk_filepaths = []
-        #     for user in args.users:
-        #         htk_filepaths.extend(glob.glob(os.path.join("data/htk", '*{}*.htk'.format(user))))
-        
-        # phrases = [' '.join(filepath.split('.')[1].split('_'))
-        #     for filepath
-        #     in htk_filepaths]
-        # train_data, test_data, _, _ = train_test_split(
-        #     htk_filepaths, phrases, test_size=args.test_size,
-        #     random_state=args.random_state)
-
-        # create_data_lists(train_data, test_data, args.phrase_len)
-        # train(args.train_iters, args.mean, args.variance, args.transition_prob)
-
-        # prepare_data(features_config, args.new_users)
-        # htk_filepaths = []
-        # for user in args.new_users:
-        #     htk_filepaths.extend(glob.glob(os.path.join("data/htk", '*{}*.htk'.format(user))))
-        
-        # phrases = [' '.join(filepath.split('.')[1].split('_'))
-        #     for filepath
-        #     in htk_filepaths]
-        # train_data, test_data, _, _ = train_test_split(
-        #     htk_filepaths, phrases, test_size=args.test_size,
-        #     random_state=args.random_state)
-
-        # create_data_lists(train_data, test_data, args.phrase_len)
-        adapt(args.adapt_iters, args.train_iters[-1])
-        test(args.start, args.end, args.method, args.hmm_insertion_penalty)
-        hresults_file = f'hresults/res_hmm5.txt'
-        all_results['fold_0'] = get_results(hresults_file)
-        all_results['average']['error'] = all_results['fold_0']['error']
-        all_results['average']['sentence_error'] = all_results['fold_0']['sentence_error']
 
     if args.method == "recognition":
         
