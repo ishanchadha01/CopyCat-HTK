@@ -236,6 +236,10 @@ def main():
     
     args = parser.parse_args()
     ########################################################################################
+    
+    if args.parallel_jobs < 1:
+        raise ValueError('Number of parallel jobs must be at least 1')
+    
     features_config = load_json('configs/features.json')
 
     #if args.users: args.users = [user.capitalize() for user in args.users]

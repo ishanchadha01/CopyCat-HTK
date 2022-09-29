@@ -10,7 +10,6 @@ from tqdm import tqdm  # Ensure that version is 4.51.0 to allow for nested progr
 from p_tqdm import p_map
 from .data_augmentation_utils import *
 from .calc_min_rotations import *
-from torch.multiprocessing import Pool
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
@@ -87,7 +86,6 @@ class DataAugmentation():
         # Initializing Mediapipe (so you don't get repeating log messages saying "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")
         extract_mediapipe_features(frames=None, save_filepath=None, num_jobs=0)
 
-        # [combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.rotations = list(product(rotationsX, rotationsY))
         if 0 in rotationsX and 0 in rotationsY:
             self.rotations.remove((0, 0))
@@ -160,14 +158,15 @@ class DataAugmentation():
                            for video in self.listOfVideos for rotation in self.rotations]
 
         if self.onlyGpu:
-            self.usingImapUnordered = False
-            for video, rotation in tqdm(combinationList, desc="Augmenting Videos"):
-                self.augmentVideoGPU(video, rotation)
-                newJSONs.append(self.getNewJsonName(video, rotation))
-                self.pbarAllVideosRotations.update(1)
-            # with Pool(processes=self.numGpu) as pool:
-            #     newJSONs = pool.imap_unordered(self.augmentVideoGPU, combinationList)
-            #     newJSONs = [json for json in newJSONs]
+            self.usingImapUnordered = True
+            # for video, rotation in tqdm(combinationList, desc="Augmenting Videos"):
+            #     self.augmentVideoGPU(video, rotation)
+            #     newJSONs.append(self.getNewJsonName(video, rotation))
+            #     self.pbarAllVideosRotations.update(1)
+            with mp.Pool(processes=self.numGpu) as pool:
+                newJSONs = pool.map(self.augmentVideoGPU, combinationList)
+                newJSONs = [json for json in newJSONs]
+                
         elif self.numGpu > 0 and self.numCpu > 0:
             threadCpu = []
             threadGpu = []
