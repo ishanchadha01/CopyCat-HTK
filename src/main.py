@@ -231,6 +231,7 @@ def main():
     parser.add_argument('--exportVideo', type=bool, default=False)
     parser.add_argument('--useOpenCVProjectPoints', type=bool, default=False)
     parser.add_argument('--numGpu', type=int, default=0)
+    parser.add_argument('--numCpu', type=int, default=os.cpu_count())
 
     
     args = parser.parse_args()
@@ -249,6 +250,7 @@ def main():
         print("Export video:", args.exportVideo)
         print("Use opencv project points:", args.useOpenCVProjectPoints)
         print("Num GPU:", args.numGpu)
+        print("Num CPU:", args.numCpu)
         args.rotationsX = [int(x) for x in args.rotationsX.split("_")]
         args.rotationsY = [int(x) for x in args.rotationsY.split("_")]
         args.pointForAutoTranslateX = int(args.pointForAutoTranslateX)
@@ -258,6 +260,7 @@ def main():
         args.exportVideo = bool(args.exportVideo)
         args.useOpenCVProjectPoints = bool(args.useOpenCVProjectPoints)
         args.numGpu = int(args.numGpu)
+        args.numCpu = int(args.numCpu)
         # The Data augmentation object does all the bounds checking, so you dont have to worry about that
         da = DataAugmentation(
             datasetFolder=features_config['raw_videos_dir'], 
@@ -270,7 +273,8 @@ def main():
             numCpu=args.parallel_jobs,
             exportVideo=args.exportVideo,
             useOpenCVProjectPoints=args.useOpenCVProjectPoints,
-            numGpu=args.numGpu
+            numGpu=args.numGpu,
+            numCpu = args.numCpu
         )
         # listOfAugmentedVideos is a list of strings of the locations of all the augmented videos
         da.createDataAugmentedVideos()
