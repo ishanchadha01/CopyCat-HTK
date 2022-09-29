@@ -159,7 +159,16 @@ class DataAugmentation():
         combinationList = [(video, rotation)
                            for video in self.listOfVideos for rotation in self.rotations]
 
-        if self.numGpu > 0 and self.numCpu > 0:
+        if self.onlyGpu:
+            self.usingImapUnordered = False
+            for video, rotation in tqdm(combinationList, desc="Augmenting Videos"):
+                self.augmentVideoGPU(video, rotation)
+                newJSONs.append(self.getNewJsonName(video, rotation))
+                self.pbarAllVideosRotations.update(1)
+            # with Pool(processes=self.numGpu) as pool:
+            #     newJSONs = pool.imap_unordered(self.augmentVideoGPU, combinationList)
+            #     newJSONs = [json for json in newJSONs]
+        elif self.numGpu > 0 and self.numCpu > 0:
             threadCpu = []
             threadGpu = []
             while len(combinationList) > 0:
@@ -183,15 +192,6 @@ class DataAugmentation():
                 for cpu in threadCpu:
                     if not cpu.is_alive():
                         threadCpu.remove(cpu)
-        elif self.onlyGpu:
-            self.usingImapUnordered = False
-            for video, rotation in tqdm(combinationList, desc="Augmenting Videos"):
-                self.augmentVideoGPU(video, rotation)
-                newJSONs.append(self.getNewJsonName(video, rotation))
-                self.pbarAllVideosRotations.update(1)
-            # with Pool(processes=self.numGpu) as pool:
-            #     newJSONs = pool.imap_unordered(self.augmentVideoGPU, combinationList)
-            #     newJSONs = [json for json in newJSONs]
         else: # Using only CPU
             for video, rotation in combinationList:
                 self.augmentVideoCPU(video, rotation, usePtqdm=True)
