@@ -267,10 +267,10 @@ def main():
             useBodyPixModel=args.bodypix_model, 
             pointForAutoTranslate=(args.pointForAutoTranslateX, args.pointForAutoTranslateY), 
             autoTranslate=args.autoTranslate,
-            numCpus=args.parallel_jobs,
+            numCpu=args.parallel_jobs,
             exportVideo=args.exportVideo,
             useOpenCVProjectPoints=args.useOpenCVProjectPoints,
-            useGpu=args.numGpu
+            numGpu=args.numGpu
         )
         # listOfAugmentedVideos is a list of strings of the locations of all the augmented videos
         da.createDataAugmentedVideos()
