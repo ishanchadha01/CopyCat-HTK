@@ -248,7 +248,7 @@ def main():
         print("Point for auto translate:", args.pointForAutoTranslateX, args.pointForAutoTranslateY)
         print("Export video:", args.exportVideo)
         print("Use opencv project points:", args.useOpenCVProjectPoints)
-        print("Use GPU:", args.useGpu)
+        print("Num GPU:", args.numGpu)
         args.rotationsX = [int(x) for x in args.rotationsX.split("_")]
         args.rotationsY = [int(x) for x in args.rotationsY.split("_")]
         args.pointForAutoTranslateX = int(args.pointForAutoTranslateX)

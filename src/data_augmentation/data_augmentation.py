@@ -25,7 +25,7 @@ class DataAugmentation():
     except:
         pass
 
-    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False, deletePreviousAugs=True, disablePBar=False):
+    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False, deletePreviousAugs=True):
         """__init__ initialized the Data Augmentation object with the required parameters
 
         Arguments:
@@ -101,7 +101,6 @@ class DataAugmentation():
         self.autoTranslate = autoTranslate
         self.pointForAutoTranslate = pointForAutoTranslate
         self.exportVideo = exportVideo
-        self.disablePBar = disablePBar
         
         if useOpenCVProjectPoints and numGpu > 0:
             print("Cannot use GPU with OpenCV Project Points. Setting useGpu to False...")
