@@ -1,3 +1,5 @@
+from re import S
+import struct
 import cv2
 import math
 import glob
@@ -6,6 +8,7 @@ import sys
 import numpy as np
 import cupy as cp
 import tensorflow as tf
+import cupyx as cpx
 
 from .numba_utils import *
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
@@ -307,8 +310,10 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
                  :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
 
         # Apply morphology to the new image to get rid of black spots surrounded by RGB values
-        newImage = cv2.morphologyEx(
-            newImage, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+        # newImage = cv2.morphologyEx(
+        #     newImage, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+        newImage = cp.apply_along_axis(cpx.scipy.ndimage.binary_dilation, 2, newImage, cp.ones((5, 5), cp.uint8))
+        newImage = cp.apply_along_axis(cpx.scipy.ndimage.binary_erosion, 2, newImage, cp.ones((5, 5), cp.uint8))
 
     return newImage
 
