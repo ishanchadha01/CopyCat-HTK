@@ -18,12 +18,6 @@ sys.path.append(os.path.abspath('../'))
 
 class DataAugmentation():
     """DataAugmentation is a class that contains all the data augmentation methods and performs data augmentation to create new videos"""
-    # Set start method to spawn so CUDA doesn't throw initialization error
-    try:
-        mp.set_start_method('spawn')
-    except:
-        pass
-
     def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False, deletePreviousAugs=True, onlyGpu=False):
         """__init__ initialized the Data Augmentation object with the required parameters
 
@@ -47,6 +41,9 @@ class DataAugmentation():
             TypeError: The length of the point for auto translate is not 2
             ValueError: The point for auto translate is not within the image
         """
+        # Set start method to spawn so CUDA doesn't throw initialization error
+        mp.set_start_method('spawn', force=True)
+        
         # If the dataset folder or the output folder does not exist, raise an error
         if not os.path.exists(datasetFolder):
             raise NameError(f'Dataset folder {datasetFolder} does not exist')
@@ -112,6 +109,14 @@ class DataAugmentation():
             self.useOpenCVProjectPoints = False
             self.numGpu = numGpu
 
+        # Get first <numGpu> device names available
+        allDevices = [tuple(device) for device in tf.config.list_physical_devices()]
+        gpuDevices = [device for device in allDevices if device[1].lower() == 'gpu'][:numGpu]
+        gpuIds = [int(gpu[0].split(":")[-1]) for gpu in gpuDevices]
+        print(allDevices)
+        print(gpuDevices)
+        self.gpuIdString = ",".join(gpuIds)
+
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
 
@@ -158,14 +163,32 @@ class DataAugmentation():
                            for video in self.listOfVideos for rotation in self.rotations]
 
         if self.onlyGpu:
-            self.usingImapUnordered = True
+            # videoSplits = np.array_split(np.array(combinationList), self.numGpu)
+            # for ind, gpu in enumerate(gpuIds):
+            #     with cp.cuda.Device(gpu):
+            #         self.augmentVideoGPU()
+            threadGpu = []
+            while len(combinationList) > 0:
+                if len(threadGpu) != self.numGpu:
+                    video, rotation = combinationList.pop()
+                    threadGpu.append(mp.Process(
+                        target=self.augmentVideoGPU, args=(video, rotation)))
+                    threadGpu[-1].start()
+                    newJSONs.append(self.getNewJsonName(video, rotation))
+                    self.pbarAllVideosRotations.update(1)
+                for gpu in threadGpu:
+                    if not gpu.is_alive():
+                        threadGpu.remove(gpu)
+
             # for video, rotation in tqdm(combinationList, desc="Augmenting Videos"):
             #     self.augmentVideoGPU(video, rotation)
             #     newJSONs.append(self.getNewJsonName(video, rotation))
             #     self.pbarAllVideosRotations.update(1)
-            with mp.Pool(processes=self.numGpu) as pool:
-                newJSONs = pool.map(self.augmentVideoGPU, combinationList)
-                newJSONs = [json for json in newJSONs]
+            # print('here')
+            # with mp.Pool(processes=self.numGpu) as pool:
+            #     newJSONs = pool.imap_unordered(self.augmentVideoGPU, [combo[0] for combo in combinationList])
+            #     # newJSONs = [json for json in newJSONs]
+
                 
         elif self.numGpu > 0 and self.numCpu > 0:
             threadCpu = []
@@ -197,7 +220,9 @@ class DataAugmentation():
                 newJSONs.append(self.getNewJsonName(video, rotation))
                 self.pbarAllVideosRotations.update(1)
 
+        print("Finished Data Aug")
         return newJSONs
+
 
     def getNewJsonName(self, video, rotation):
         # Get the video name by getting the last str when splitting on '/'
@@ -223,7 +248,7 @@ class DataAugmentation():
             str -- destination path of the augmented video
         """
         # Force TensorFlow to not use GPU
-        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        # os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
         # Get the video name and user to create progress bar
         videoName, user = extractVideoNameAndUser(video)
@@ -247,7 +272,7 @@ class DataAugmentation():
 
         return currJSONPath
 
-    def augmentVideoGPU(self, video, rotation):
+    def augmentVideoGPU(self, video, rotation=(1,1)):
         """augmentVideo augments a video with a given rotation
 
         Arguments:
@@ -259,7 +284,8 @@ class DataAugmentation():
         """
         # Force Tensorflow and Cupy to use GPU
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        os.environ["CUDA_VISIBLE_DEVICES"] = self.gpuIdString
+        print(os)
 
         # Get the video name and user to create progress bar
         videoName, user = extractVideoNameAndUser(video)
@@ -280,9 +306,6 @@ class DataAugmentation():
         # Extract the mediapipe features for every frame
         extract_mediapipe_features(
             augmentedFrames, currJSONPath, num_jobs=self.numCpu, normalize_xy=True)
-
-        if self.usingImapUnordered:
-            self.pbarAllVideosRotations.update(1)
 
         return currJSONPath
 
@@ -453,4 +476,3 @@ if __name__ == '__main__':
         times[proc] = end - start
     
     pprint(times)
-        

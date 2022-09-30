@@ -40,7 +40,10 @@ def extractVideoNameAndUser(video: str) -> tuple:
         tuple -- the video name and user
     """
     videoName = video.split('/')[-1]
-    user = video.split('/')[-1].split('_')[1]
+    try:
+        user = video.split('/')[-1].split('_')[1]
+    except:
+        user = video.split('/')[-1]
     return videoName, user
 
 
@@ -116,18 +119,10 @@ def cleanDepthMap(depthMap, image, useBodyPixModel, medianBlurKernelSize=5, gaus
     # Interesting thing to note: From visual inspections, the mean of the original depth map is really close to the depth of the body
     # A different filtering mechanism if body segmentation is used
     if type(useBodyPixModel) == 'int' and useBodyPixModel in bodyPixModelsDict:
-        if gpu:
-            with tf.device('/gpu:0'):
-                bodypixModel = loadBodyPixelModel(useBodyPixModel)
-                result = bodypixModel.predict_single(image)
-                mask = result.get_mask(
-                    threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
-        else:
-            with tf.device('/cpu:0'):
-                bodypixModel = loadBodyPixelModel(useBodyPixModel)
-                result = bodypixModel.predict_single(image)
-                mask = result.get_mask(
-                    threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
+        bodypixModel = loadBodyPixelModel(useBodyPixModel)
+        result = bodypixModel.predict_single(image)
+        mask = result.get_mask(
+            threshold=0.5).numpy().astype(np.uint8)[:, :, 0]
 
         body = depthMap[mask == 1]
         body = cv2.dilate(body, np.ones((5, 5), np.uint8), iterations=1)[:, 0]
