@@ -1,4 +1,4 @@
-from re import S
+from time import perf_counter
 import struct
 import cv2
 import math
@@ -249,8 +249,10 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
     Returns:
         np.ndarray -- RGB projected image
     """
+    start = perf_counter()
     if gpu:
         # Define the new RGB image as 0s. Helpful later on because all 0s correspond to black pixels
+        step6a = perf_counter()
         newImage = cp.zeros(
             (image.shape[0], image.shape[1], 3), dtype=cp.uint8)
 
@@ -266,6 +268,7 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
             'z = x < y? 1 : 0',
             'maskLessThan'
         )
+        step6a = perf_counter()
         mask1 = maskGreaterThan(projectedImage[:, 0], 0).astype(cp.bool)
         mask2 = maskGreaterThan(projectedImage[:, 1], 0).astype(cp.bool)
         mask3 = maskLessThan(
@@ -273,10 +276,11 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
         mask4 = maskLessThan(
             projectedImage[:, 1], image.shape[1] - 1).astype(cp.bool)
         mask_image_grid_cv = mask1 & mask2 & mask3 & mask4
+        step6b = perf_counter()
 
         image_grid_cv = projectedImage[mask_image_grid_cv]
         original_pixels = originalPixels[mask_image_grid_cv]
-
+        step6c = perf_counter()
         # Convert both arrays to integer values because integer values are needed for NumPy slicing
         image_grid_cv = cp.rint(image_grid_cv).astype('int')
         original_pixels = cp.rint(original_pixels).astype('int')
@@ -284,11 +288,21 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
         # Copy the values from old to new
         newImage[image_grid_cv[:, 0], image_grid_cv[:, 1],
                  :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
-
+        step6d = perf_counter()
         # Apply morphology to the new image to get rid of black spots surrounded by RGB values
-        newImage = cv2.morphologyEx(
-            cp.asnumpy(newImage), cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-
+        # newImage = cv2.morphologyEx(
+        #     cp.asnumpy(newImage), cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+        newImage[:, :, 0] = cpx.scipy.ndimage.grey_closing(newImage[:, :, 0], (3, 3))
+        newImage[:, :, 1] = cpx.scipy.ndimage.grey_closing(newImage[:, :, 1], (3, 3))
+        newImage[:, :, 2] = cpx.scipy.ndimage.grey_closing(newImage[:, :, 2], (3, 3))
+        
+        # newImage = cp.apply_along_axis(cpx.scipy.ndimage.grey_dilation, -1, newImage, (5,5))
+        step6e = perf_counter()
+        # print(f"Step6a: {step6a} - start")
+        # print(f"Step6b: {step6b - step6a}")
+        # print(f"Step6c: {step6c - step6b}")
+        # print(f"Step6d: {step6d - step6c}")
+        # print(f"Step6e: {step6e - step6d}")
     else:
         # Define the new RGB image as 0s. Helpful later on because all 0s correspond to black pixels
         newImage = np.zeros(
@@ -310,10 +324,8 @@ def createNewImage(projectedImage, originalPixels, image, gpu=False) -> np.ndarr
                  :] = image[original_pixels[:, 0], original_pixels[:, 1], :]
 
         # Apply morphology to the new image to get rid of black spots surrounded by RGB values
-        # newImage = cv2.morphologyEx(
-        #     newImage, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-        newImage = cp.apply_along_axis(cpx.scipy.ndimage.binary_dilation, 2, newImage, cp.ones((5, 5), cp.uint8))
-        newImage = cp.apply_along_axis(cpx.scipy.ndimage.binary_erosion, 2, newImage, cp.ones((5, 5), cp.uint8))
+        newImage = cv2.morphologyEx(
+            newImage, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
 
     return newImage
 
@@ -416,9 +428,10 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
         np.ndarray -- RGB projected image of the current frame given the rotation
     """
     # Clean the depth map and divide by 1000 to convert millimeters to meters
+    start = perf_counter()
     depthData = cleanDepthMap(depth, image, useBodyPixModel,
                               medianBlurKernelSize, gaussianBlurKernelSize, gpu=gpu) / 1000
-
+    step1 = perf_counter()
     # Define a matrix that contains all the pixel coordinates and their depths in a 2D array
     # The size of this matrix will be (image height x image width, 3) where the 3 is for the u, v, and depth
     pixels = createPixelCoordinateMatrix(depthData, gpu=gpu)
@@ -427,7 +440,7 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     # For some reason, the x rotation is actually the y-rotation based off experiments. Guru believes it has to do with how the u and v coordinates are defined
     rotation_x = getRotationMatrix(0, np.deg2rad(rotation[1]), gpu=gpu)
     rotation_y = getRotationMatrix(1, np.deg2rad(rotation[0]), gpu=gpu)
-
+    step2 = perf_counter()
     # The translation is set to 0 always. Autotranslation is done after cv2.projectPoints
     if gpu:
         translation = cp.array([0., 0., 0.])
@@ -437,7 +450,7 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     # Calculate the world coordinates of the pixels
     worldGrid = calculateWorldCoordinates(
         pixels, cameraIntrinsicMatrix, gpu=gpu)
-
+    step3 = perf_counter()
     if useOpenCVProjectPoints:
         # Project the world coordinates to the image plane
         rotationRodrigues, _ = cv2.Rodrigues(rotation_x.dot(rotation_y))
@@ -447,7 +460,7 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
     else:
         projectedImage = projectPoints(worldGrid, rotation_x.dot(
             rotation_y), translation, cameraIntrinsicMatrix, distortionCoefficients, gpu=gpu)
-        
+    step4 = perf_counter()
     del worldGrid
 
     # If autoTranslate is true, then we should apply it to the image
@@ -456,14 +469,20 @@ def augmentFrame(image, depth, rotation, cameraIntrinsicMatrix, distortionCoeffi
             pointForAutoTranslate, rotation[1], rotation[0], depthData, cameraIntrinsicMatrix)
         projectedImage[:, 0] += Tx
         projectedImage[:, 1] += Ty
-
+    step5 = perf_counter()
     # Create the new RGB image
     originalPixels = pixels[:, :-1]
     del pixels
 
     newImage = createNewImage(projectedImage, originalPixels, image, gpu=gpu)
-
-    return newImage
+    step6 = perf_counter()
+    # print(f"Step 1: {step1 - start}")
+    # print(f"Step 2: {step2 - step1}")
+    # print(f"Step 3: {step3 - step2}")
+    # print(f"Step 4: {step4 - step3}")
+    # print(f"Step 5: {step5 - step4}")
+    # print(f"Step 6: {step6 - step5}")
+    return cp.asnumpy(newImage)
 
 
 def projectPoints(worldGrid, rotationMatrix, translation, cameraIntrinsicMatrix, distortionCoefficients, gpu=False):

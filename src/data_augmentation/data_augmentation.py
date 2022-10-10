@@ -10,6 +10,7 @@ from tqdm import tqdm  # Ensure that version is 4.51.0 to allow for nested progr
 from p_tqdm import p_map
 from .data_augmentation_utils import *
 from .calc_min_rotations import *
+from torch.multiprocessing import Pool
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
 
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
@@ -18,6 +19,12 @@ sys.path.append(os.path.abspath('../'))
 
 class DataAugmentation():
     """DataAugmentation is a class that contains all the data augmentation methods and performs data augmentation to create new videos"""
+    # Set start method to spawn so CUDA doesn't throw initialization error
+    try:
+        mp.set_start_method('spawn')
+    except:
+        pass
+
     def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False, deletePreviousAugs=True, onlyGpu=False):
         """__init__ initialized the Data Augmentation object with the required parameters
 
@@ -41,9 +48,6 @@ class DataAugmentation():
             TypeError: The length of the point for auto translate is not 2
             ValueError: The point for auto translate is not within the image
         """
-        # Set start method to spawn so CUDA doesn't throw initialization error
-        mp.set_start_method('spawn', force=True)
-        
         # If the dataset folder or the output folder does not exist, raise an error
         if not os.path.exists(datasetFolder):
             raise NameError(f'Dataset folder {datasetFolder} does not exist')
@@ -83,6 +87,7 @@ class DataAugmentation():
         # Initializing Mediapipe (so you don't get repeating log messages saying "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")
         extract_mediapipe_features(frames=None, save_filepath=None, num_jobs=0)
 
+        # [combination for combination in list(product(rotationsX, rotationsY)) if combination != (0, 0)]
         self.rotations = list(product(rotationsX, rotationsY))
         if 0 in rotationsX and 0 in rotationsY:
             self.rotations.remove((0, 0))
@@ -108,14 +113,6 @@ class DataAugmentation():
         else:
             self.useOpenCVProjectPoints = False
             self.numGpu = numGpu
-
-        # Get first <numGpu> device names available
-        allDevices = [tuple(device) for device in tf.config.list_physical_devices()]
-        gpuDevices = [device for device in allDevices if device[1].lower() == 'gpu'][:numGpu]
-        gpuIds = [int(gpu[0].split(":")[-1]) for gpu in gpuDevices]
-        print(allDevices)
-        print(gpuDevices)
-        self.gpuIdString = ",".join(gpuIds)
 
         # Get the list of videos
         self.listOfVideos = getListVideos(self.datasetFolder)
@@ -163,66 +160,21 @@ class DataAugmentation():
                            for video in self.listOfVideos for rotation in self.rotations]
 
         if self.onlyGpu:
-            # videoSplits = np.array_split(np.array(combinationList), self.numGpu)
-            # for ind, gpu in enumerate(gpuIds):
-            #     with cp.cuda.Device(gpu):
-            #         self.augmentVideoGPU()
-            threadGpu = []
-            while len(combinationList) > 0:
-                if len(threadGpu) != self.numGpu:
-                    video, rotation = combinationList.pop()
-                    threadGpu.append(mp.Process(
-                        target=self.augmentVideoGPU, args=(video, rotation)))
-                    threadGpu[-1].start()
-                    newJSONs.append(self.getNewJsonName(video, rotation))
-                    self.pbarAllVideosRotations.update(1)
-                for gpu in threadGpu:
-                    if not gpu.is_alive():
-                        threadGpu.remove(gpu)
-
-            # for video, rotation in tqdm(combinationList, desc="Augmenting Videos"):
-            #     self.augmentVideoGPU(video, rotation)
-            #     newJSONs.append(self.getNewJsonName(video, rotation))
-            #     self.pbarAllVideosRotations.update(1)
-            # print('here')
-            # with mp.Pool(processes=self.numGpu) as pool:
-            #     newJSONs = pool.imap_unordered(self.augmentVideoGPU, [combo[0] for combo in combinationList])
-            #     # newJSONs = [json for json in newJSONs]
-
-                
-        elif self.numGpu > 0 and self.numCpu > 0:
-            threadCpu = []
-            threadGpu = []
-            while len(combinationList) > 0:
-                if len(threadCpu) < self.numCpu:
-                    video, rotation = combinationList.pop()
-                    threadCpu.append(mp.Process(
-                        target=self.augmentVideoCPU, args=(video, rotation, False)))
-                    threadCpu[-1].start()
-                    newJSONs.append(self.getNewJsonName(video, rotation))
-                    self.pbarAllVideosRotations.update(1)
-                if len(threadGpu) != self.numGpu:
-                    video, rotation = combinationList.pop()
-                    threadGpu.append(mp.Process(
-                        target=self.augmentVideoGPU, args=(video, rotation)))
-                    threadGpu[-1].start()
-                    newJSONs.append(self.getNewJsonName(video, rotation))
-                    self.pbarAllVideosRotations.update(1)
-                for gpu in threadGpu:
-                    if not gpu.is_alive():
-                        threadGpu.remove(gpu)
-                for cpu in threadCpu:
-                    if not cpu.is_alive():
-                        threadCpu.remove(cpu)
+            self.usingImapUnordered = False
+            for video, rotation in combinationList:
+                self.augmentVideoGPU(video, rotation)
+                newJSONs.append(self.getNewJsonName(video, rotation))
+                self.pbarAllVideosRotations.update(1)
+            # with Pool(processes=self.numGpu) as pool:
+            #     newJSONs = pool.imap_unordered(self.augmentVideoGPU, combinationList)
+            #     newJSONs = [json for json in newJSONs]
         else: # Using only CPU
             for video, rotation in combinationList:
                 self.augmentVideoCPU(video, rotation, usePtqdm=True)
                 newJSONs.append(self.getNewJsonName(video, rotation))
                 self.pbarAllVideosRotations.update(1)
 
-        print("Finished Data Aug")
         return newJSONs
-
 
     def getNewJsonName(self, video, rotation):
         # Get the video name by getting the last str when splitting on '/'
@@ -248,7 +200,7 @@ class DataAugmentation():
             str -- destination path of the augmented video
         """
         # Force TensorFlow to not use GPU
-        # os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
         # Get the video name and user to create progress bar
         videoName, user = extractVideoNameAndUser(video)
@@ -272,7 +224,7 @@ class DataAugmentation():
 
         return currJSONPath
 
-    def augmentVideoGPU(self, video, rotation=(1,1)):
+    def augmentVideoGPU(self, video, rotation):
         """augmentVideo augments a video with a given rotation
 
         Arguments:
@@ -284,8 +236,7 @@ class DataAugmentation():
         """
         # Force Tensorflow and Cupy to use GPU
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        os.environ["CUDA_VISIBLE_DEVICES"] = self.gpuIdString
-        print(os)
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
         # Get the video name and user to create progress bar
         videoName, user = extractVideoNameAndUser(video)
@@ -306,6 +257,9 @@ class DataAugmentation():
         # Extract the mediapipe features for every frame
         extract_mediapipe_features(
             augmentedFrames, currJSONPath, num_jobs=self.numCpu, normalize_xy=True)
+
+        if self.usingImapUnordered:
+            self.pbarAllVideosRotations.update(1)
 
         return currJSONPath
 
@@ -367,7 +321,7 @@ class DataAugmentation():
         videoFramesFiles = np.load(f"{video}.npz").files
         totalFrames = int((len(videoFramesFiles) - 2) / 2)
         augmentedFrames = []
-        for frame_no in tqdm(range(totalFrames), desc=f"{user}-{videoName}-GPU"):
+        for frame_no in tqdm(range(totalFrames), desc=f"{user}-{videoName}-GPU", disable=True):
             depthFrame = videoFrames[f'DepthFrame{frame_no}']
             colorFrame = videoFrames[f'ColorFrame{frame_no}']
             augmentedFrames.append(
@@ -476,3 +430,4 @@ if __name__ == '__main__':
         times[proc] = end - start
     
     pprint(times)
+        

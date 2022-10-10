@@ -4,12 +4,20 @@ import json
 import math
 from p_tqdm import p_imap
 from functools import partial
+from tqdm import tqdm
 
 '''
 This function was already implemented in a different script .py file in this directory by someone else before Guru
 The original script is called "mediapipePythonWrapper.py" and can be found in this directory: "/home/aslr/ProcessingPipeline/Scripts"
 Edits were made to get non-normalized values and parallelize process
 '''
+
+mp_holistic = mp.solutions.holistic
+holistic = mp_holistic.Holistic(
+    min_detection_confidence=0.5, 
+    min_tracking_confidence=0.1
+)
+    
 def extract_mediapipe_features(frames, save_filepath, num_jobs, normalize_xy=True) -> None:
     """extract_mediapipe_features extracts the mediapipe features for each frame passed in as a list
 
@@ -30,7 +38,11 @@ def extract_mediapipe_features(frames, save_filepath, num_jobs, normalize_xy=Tru
 
     curr_frame = 0
     features = {}
-    features_iterator = p_imap(partial(extract_frame_features, normalize_xy=normalize_xy), frames, num_cpus=num_jobs, disable=True)
+    
+    features_iterator = []
+    for frame in frames:
+        features_iterator.append(extract_frame_features(frame, normalize_xy))
+        
     for curr_frame, curr_frame_feature in enumerate(features_iterator):
         features[curr_frame] = curr_frame_feature
   
@@ -41,11 +53,6 @@ def extract_mediapipe_features(frames, save_filepath, num_jobs, normalize_xy=Tru
         json.dump(features, outfile, indent=4)
         
 def extract_frame_features(image, normalize_xy) -> dict:
-    mp_holistic = mp.solutions.holistic
-    holistic = mp_holistic.Holistic(
-        min_detection_confidence=0.5, 
-        min_tracking_confidence=0.1
-    )
     image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
     image_height, image_width, _ = image.shape
     image.flags.writeable = False
@@ -71,7 +78,6 @@ def extract_frame_features(image, normalize_xy) -> dict:
                         min(math.floor(curr_point.y * image_height), image_height - 1),
                     ]
                 feature_num += 1
-    holistic.close()
-    
+   
     return curr_frame_features
         
