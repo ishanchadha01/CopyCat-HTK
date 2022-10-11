@@ -12,6 +12,7 @@ from .data_augmentation_utils import *
 from .calc_min_rotations import *
 from torch.multiprocessing import Pool
 from src.openpose_feature_extraction.generate_mediapipe_features import extract_mediapipe_features
+from .create_batches import create_batches
 
 # Adds the src folder to the path so generate_mediapipe_features.py can be imported
 sys.path.append(os.path.abspath('../'))
@@ -25,7 +26,7 @@ class DataAugmentation():
     except:
         pass
 
-    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False, deletePreviousAugs=True, onlyGpu=False):
+    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False, deletePreviousAugs=True, onlyGpu=False, totalBatches=1, batchNum=1):
         """__init__ initialized the Data Augmentation object with the required parameters
 
         Arguments:
@@ -113,10 +114,18 @@ class DataAugmentation():
         else:
             self.useOpenCVProjectPoints = False
             self.numGpu = numGpu
-
-        # Get the list of videos
-        self.listOfVideos = getListVideos(self.datasetFolder)
-
+        
+        if totalBatches > 1:
+            if batchNum > totalBatches:
+                raise ValueError('batchNum must be less than or equal to createBatches')
+            else:
+                create_batches(getListVideos(self.datasetFolder), totalBatches, output_path=f'{self.outputPath}/batches')
+        
+        with open(f'{self.outputPath}/batches/batch_{batchNum}') as fin:
+            self.listOfVideos = fin.readlines()
+        
+        self.totalBatches = totalBatches
+        self.batchNum = batchNum 
         # min_v_0, min_v_2160, min_u_0, min_u_3840 = self.calculateMinRotationsPossible()
         # print(min_v_0, min_v_2160, min_u_0, min_u_3840)
 

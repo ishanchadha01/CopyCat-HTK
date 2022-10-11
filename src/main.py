@@ -232,6 +232,8 @@ def main():
     parser.add_argument('--useOpenCVProjectPoints', type=bool, default=False)
     parser.add_argument('--numGpu', type=int, default=0)
     parser.add_argument('--onlyGpu', type=bool, default=False)
+    parser.add_argument('--totalBatches', type=int, default=1)
+    parser.add_argument('--currBatch', type=int, default=1)
 
     
     args = parser.parse_args()
@@ -254,6 +256,9 @@ def main():
         print("Export video:", args.exportVideo)
         print("Use opencv project points:", args.useOpenCVProjectPoints)
         print("Num GPU:", args.numGpu)
+        print("Only GPU:", args.onlyGpu)
+        print("Total batches:", args.totalBatches)
+        print("Current batch:", args.currBatch)
         args.rotationsX = [int(x) for x in args.rotationsX.split("_")]
         args.rotationsY = [int(x) for x in args.rotationsY.split("_")]
         args.pointForAutoTranslateX = int(args.pointForAutoTranslateX)
@@ -264,6 +269,8 @@ def main():
         args.useOpenCVProjectPoints = bool(args.useOpenCVProjectPoints)
         args.numGpu = int(args.numGpu)
         args.onlyGpu = bool(args.onlyGpu)
+        args.totalBatches = int(args.totalBatches)
+        args.currBatch = int(args.currBatch)
         # The Data augmentation object does all the bounds checking, so you dont have to worry about that
         da = DataAugmentation(
             datasetFolder=features_config['raw_videos_dir'], 
@@ -277,7 +284,9 @@ def main():
             exportVideo=args.exportVideo,
             useOpenCVProjectPoints=args.useOpenCVProjectPoints,
             numGpu=args.numGpu,
-            onlyGpu=args.onlyGpu
+            onlyGpu=args.onlyGpu,
+            createBatches=args.totalBatches,
+            batchNum=args.currBatch
         )
         # listOfAugmentedVideos is a list of strings of the locations of all the augmented videos
         da.createDataAugmentedVideos()
