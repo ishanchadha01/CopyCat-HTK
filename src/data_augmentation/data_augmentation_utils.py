@@ -43,10 +43,11 @@ def extractVideoNameAndUser(video: str) -> tuple:
         tuple -- the video name and user
     """
     videoName = video.split('/')[-1]
-    try:
-        user = video.split('/')[-1].split('_')[1]
-    except:
-        user = video.split('/')[-1]
+    user = 'Unknown'
+    for user_name in ['Thad', 'Raj', 'Linda', 'Dhruva', 'Ganesh', 'Elli', 'Sreya', 'Jinghong', 'Ishan', 'David', 'Colby', 'Guru', 'Prerna']:
+        if user_name.lower() in video.lower():
+            user = user_name
+            break
     return videoName, user
 
 

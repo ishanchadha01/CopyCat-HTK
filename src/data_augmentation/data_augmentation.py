@@ -234,10 +234,6 @@ class DataAugmentation():
         Returns:
             str -- destination path of the augmented video
         """
-        # Force Tensorflow and Cupy to use GPU
-        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
         # Get the video name and user to create progress bar
         videoName, user = extractVideoNameAndUser(video)
 
