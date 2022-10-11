@@ -119,7 +119,7 @@ class DataAugmentation():
             if batchNum > totalBatches:
                 raise ValueError('batchNum must be less than or equal to createBatches')
             else:
-                create_batches(getListVideos(self.datasetFolder), totalBatches, output_path=f'{self.outputPath}/batches')
+                create_batches(getListVideos(self.datasetFolder), totalBatches, output_path=f'{self.datasetFolder}/batches')
         
         with open(f'{self.outputPath}/batches/batch_{batchNum}') as fin:
             self.listOfVideos = fin.readlines()
