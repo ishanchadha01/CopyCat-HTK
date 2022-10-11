@@ -84,6 +84,9 @@ class DataAugmentation():
         
         if numGpu <= 0 and numCpu <= 0:
             raise ValueError('numGpu or numCpu must be greater than 0 but both are set to 0')
+        
+        if batchNum > totalBatches:
+            raise ValueError('batchNum must be less than or equal to createBatches')
 
         # Initializing Mediapipe (so you don't get repeating log messages saying "INFO: Created TensorFlow Lite XNNPACK delegate for CPU.")
         extract_mediapipe_features(frames=None, save_filepath=None, num_jobs=0)
@@ -115,14 +118,9 @@ class DataAugmentation():
             self.useOpenCVProjectPoints = False
             self.numGpu = numGpu
         
-        if totalBatches > 1:
-            if batchNum > totalBatches:
-                raise ValueError('batchNum must be less than or equal to createBatches')
-            else:
-                create_batches(getListVideos(self.datasetFolder), totalBatches, output_path=f'{self.datasetFolder}/batches')
-        
-        with open(f'{self.outputPath}/batches/batch_{batchNum}') as fin:
-            self.listOfVideos = fin.readlines()
+        create_batches(getListVideos(self.datasetFolder), totalBatches, output_path=f'{self.datasetFolder}/batches')
+        with open(f'{self.datasetFolder}/batches/batch_{batchNum}.txt') as fin:
+            self.listOfVideos = fin.read().splitlines()
         
         self.totalBatches = totalBatches
         self.batchNum = batchNum 
