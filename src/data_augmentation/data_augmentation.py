@@ -165,9 +165,7 @@ class DataAugmentation():
                 self.augmentVideoGPU(video, rotation)
                 newJSONs.append(self.getNewJsonName(video, rotation))
                 self.pbarAllVideosRotations.update(1)
-            # with Pool(processes=self.numGpu) as pool:
-            #     newJSONs = pool.imap_unordered(self.augmentVideoGPU, combinationList)
-            #     newJSONs = [json for json in newJSONs]
+
         else: # Using only CPU
             for video, rotation in combinationList:
                 self.augmentVideoCPU(video, rotation, usePtqdm=True)
@@ -219,8 +217,9 @@ class DataAugmentation():
             exportVideo(video, currJSONPath, augmentedFrames)
 
         # Extract the mediapipe features for every frame
-        extract_mediapipe_features(
-            augmentedFrames, currJSONPath, num_jobs=self.numCpu, normalize_xy=True)
+        if augmentedFrames != None:
+            extract_mediapipe_features(
+                augmentedFrames, currJSONPath, num_jobs=self.numCpu, normalize_xy=True)
 
         return currJSONPath
 
@@ -234,6 +233,10 @@ class DataAugmentation():
         Returns:
             str -- destination path of the augmented video
         """
+        # Force Tensorflow and Cupy to use GPU
+        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
         # Get the video name and user to create progress bar
         videoName, user = extractVideoNameAndUser(video)
 
@@ -251,8 +254,9 @@ class DataAugmentation():
             exportVideo(video, currJSONPath, augmentedFrames)
 
         # Extract the mediapipe features for every frame
-        extract_mediapipe_features(
-            augmentedFrames, currJSONPath, num_jobs=self.numCpu, normalize_xy=True)
+        if augmentedFrames != None:
+            extract_mediapipe_features(
+                augmentedFrames, currJSONPath, num_jobs=self.numCpu, normalize_xy=True)
 
         if self.usingImapUnordered:
             self.pbarAllVideosRotations.update(1)
@@ -263,7 +267,7 @@ class DataAugmentation():
         videoFrames = np.load(f"{video}.npz")
         if videoFrames['DepthFrame0'].shape[0] < 2160:
             return None
-        
+
         # Parallelize the frame augmentation process to speed up the process
         if usePtqdm:
             allImages = [videoFrames[image] for image in getColorFrames(video)]
