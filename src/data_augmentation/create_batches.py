@@ -3,7 +3,7 @@ import numpy as np
 import shutil
 
 def create_batches(videos, num_batches, output_path):
-    if os.path.exists(f'{output_path}/batch_{num_batches}.txt'):
+    if os.path.exists(f'{output_path}/batch_{num_batches}.txt') and not os.path.exists(f'{output_path}/batch_{num_batches+1}.txt'):
         return
     shutil.rmtree(output_path)
     os.makedirs(output_path)
