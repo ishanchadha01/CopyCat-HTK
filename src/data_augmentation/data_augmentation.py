@@ -95,6 +95,9 @@ class DataAugmentation():
         self.rotations = list(product(rotationsX, rotationsY))
         if 0 in rotationsX and 0 in rotationsY:
             self.rotations.remove((0, 0))
+        
+        # Force only 4 augmentations in north, south, east, west
+        self.rotations = [combo for combo in self.rotations if (combo[0] == 0 or combo[1] == 0)]
 
         self.datasetFolder = datasetFolder
         self.numCpu = numCpu
