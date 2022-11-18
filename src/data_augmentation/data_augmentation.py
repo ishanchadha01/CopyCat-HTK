@@ -26,7 +26,7 @@ class DataAugmentation():
     except:
         pass
 
-    def __init__(self, rotationsX, rotationsY, datasetFolder='./CopyCatDatasetWIP', outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False, deletePreviousAugs=True, onlyGpu=False, totalBatches=1, batchNum=1):
+    def __init__(self, rotationsX, rotationsY, datasetFolder, outputPath='.', numCpu=os.cpu_count(), useBodyPixModel=1, medianBlurKernelSize=5, gaussianBlurKernelSize=55, autoTranslate=True, pointForAutoTranslate=(3840 // 2, 2160 // 2), useOpenCVProjectPoints=False, numGpu=0, exportVideo=False, deletePreviousAugs=True, onlyGpu=False, totalBatches=1, batchNum=1):
         """__init__ initialized the Data Augmentation object with the required parameters
 
         Arguments:
@@ -58,10 +58,10 @@ class DataAugmentation():
             os.makedirs(outputPath)
 
         # Delete the previous augmentations before making new ones
-        if deletePreviousAugs:
-            if os.path.exists(outputPath):
-                os.system(f'rm -rf {outputPath}')
-            os.makedirs(outputPath)
+        # if deletePreviousAugs:
+        #     if os.path.exists(outputPath):
+        #         os.system(f'rm -rf {outputPath}')
+        #     os.makedirs(outputPath)
 
         # If the x or y angle is negative or greater than 90, raise an error
         for x, y in zip(rotationsX, rotationsY):
@@ -276,6 +276,7 @@ class DataAugmentation():
     def augmentFrameCPU(self, video, user, videoName, rotation, intrinsicCameraMatrix, distortionCoefficients, usePtqdm=True) -> list:
         videoFrames = np.load(f"{video}.npz")
         if videoFrames['DepthFrame0'].shape[0] < 2160:
+            print(f"{video} is not a 4K video")
             return None
 
         # Parallelize the frame augmentation process to speed up the process

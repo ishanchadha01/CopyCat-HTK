@@ -234,6 +234,8 @@ def main():
     parser.add_argument('--onlyGpu', type=bool, default=False)
     parser.add_argument('--totalBatches', type=int, default=1)
     parser.add_argument('--batchNum', type=int, default=1)
+    parser.add_argument('--createBatches', type=bool, default=False)
+    parser.add_argument('--numBatches', type=int, default=1)
 
     
     args = parser.parse_args()
@@ -245,6 +247,25 @@ def main():
     features_config = load_json('configs/features.json')
 
     #if args.users: args.users = [user.capitalize() for user in args.users]
+    
+    if args.createBatches:
+        da = DataAugmentation(
+            datasetFolder=features_config['raw_videos_dir'], 
+            outputPath=f"{features_config['features_dir']}/augmented", 
+            rotationsX=[int(x) for x in args.rotationsX.split("_")], 
+            rotationsY=[int(x) for x in args.rotationsY.split("_")], 
+            useBodyPixModel=args.bodypix_model, 
+            pointForAutoTranslate=(args.pointForAutoTranslateX, args.pointForAutoTranslateY), 
+            autoTranslate=args.autoTranslate,
+            numCpu=args.parallel_jobs,
+            exportVideo=args.exportVideo,
+            useOpenCVProjectPoints=args.useOpenCVProjectPoints,
+            numGpu=args.numGpu,
+            onlyGpu=args.onlyGpu,
+            totalBatches=args.numBatches,
+            batchNum=args.batchNum
+        )
+        sys.exit(f"Created {args.numBatches} batches of dataset located {features_config['raw_videos_dir']}")
     
     if args.data_augmentation:
         print("Data augmentation is enabled -- Prepare Data will be enabled by default")
@@ -290,9 +311,10 @@ def main():
         )
         # listOfAugmentedVideos is a list of strings of the locations of all the augmented videos
         da.createDataAugmentedVideos()
-        
-        # Prepare data for all the augmented videos
-        prepare_data(features_config, args.users, args.parallel_jobs)
+
+        sys.exit(f"Data Augmentation complete for batch {args.batchNum}")        
+        # # Prepare data for all the augmented videos
+        # prepare_data(features_config, args.users, args.parallel_jobs)
 
     cross_val_methods = {'kfold': (KFold, True),
                          'leave_one_phrase_out': (LeaveOneGroupOut(), True),
