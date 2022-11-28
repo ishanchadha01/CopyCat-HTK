@@ -7,6 +7,7 @@ import shutil
 import json
 import re
 from collections import OrderedDict
+from sys import platform
 
 from ffprobe import FFProbe
 import numpy as np
@@ -35,13 +36,16 @@ def make_elan(data: OrderedDict, has_states: bool, video_dirs: list, eaf_savedir
     eaf_savedir : str
         Directory under which eaf files are saved.
     """
-    video_names = [ vname.split('/')[-1] for vname in video_dirs ]
+    video_names = [ vdir.split('/')[-1] for vdir in video_dirs ]
+    print(video_names)
     eaf_files = []
     for fname_ext in video_names:
         ext = fname_ext.split('.')[-1]
         fname = fname_ext[:-1*len(ext)-1]
         if fname in data.keys():
             video_fp = video_dirs[video_names.index(fname_ext)]
+            if platform == "linux" or platform == "linux2":
+              video_fp = "file:///" + video_fp
             out_path = os.path.join(eaf_savedir, fname + '.eaf')
 
             # Create base eaf file
@@ -71,69 +75,6 @@ def make_elan(data: OrderedDict, has_states: bool, video_dirs: list, eaf_savedir
             to_eaf(out_path, eaf_file)
             eaf_files.append(eaf_file)
     return eaf_files
-
-    """Processes raw macros data extracted from HMMs and coverts the data into a dictionary macros_data:
-        [word][state_number][mixture_number][mean/variance/gconst/mixture_weight][if mean/var then feature label].
-
-    Parameters
-    ----------
-    feature_labels : list of str
-        List of features from the feature config file used when testing and training the HMM.
-
-    macros_filepath : str
-        File path to the corresponding newMacros result file that is generated from running HMM.
-
-    Returns
-    -------
-    macros_data : dictionary
-        The data extracted from the newMacros file in the following format:
-        [word][state_number][mixture_number][mean/variance/gconst/mixture_weight][if mean/variance then feature_label].
-
-    """
-    macros_data = {}
-    macro_lines = [ line.rstrip() for line in open(macros_filepath, "r") ]
-
-    i = 0
-    while i != len(macro_lines):
-        while i != len(macro_lines) and "~h" not in macro_lines[i]:
-            i += 1
-        if i == len(macro_lines): break
-        word = macro_lines[i].split("\"")[1]
-        macros_data[word] = {}
-        
-        while "<NUMSTATES>" not in macro_lines[i]:
-            i += 1
-        num_states = int(macro_lines[i].split(" ")[1])
-        for num_state in range(2, num_states):
-            while "<STATE>" not in macro_lines[i]:
-                i += 1
-            macros_data[word][num_state] = {}
-
-            while "<NUMMIXES>" not in macro_lines[i]:
-                i += 1
-            num_mixes = int(macro_lines[i].split(" ")[1])
-            for num_mix in range(1, num_mixes + 1):
-                macros_data[word][num_state][num_mix] = {}
-
-                i += 1
-                macros_data[word][num_state][num_mix]["mixture_weight"] = float(macro_lines[i].split(" ")[2])
-
-                i += 2
-                mean_list = macro_lines[i].split(" ")[1:]
-                mean_list = [ float(item) for item in mean_list ]
-                macros_data[word][num_state][num_mix]["mean"] = dict(zip(feature_labels, mean_list))
-
-                i += 2
-                variance_list = macro_lines[i].split(" ")[1:]
-                variance_list = [ float(item) for item in variance_list ]
-                macros_data[word][num_state][num_mix]["variance"] = dict(zip(feature_labels, variance_list))
-
-                i += 1
-                macros_data[word][num_state][num_mix]["gconst"] = float(macro_lines[i].split(" ")[1])
-
-        while "<ENDHMM>" not in macro_lines[i]:
-            i += 1
-    return macros_data
 
 
 def scale_annotations(annotation_data: dict, video_len: int):
@@ -175,6 +116,10 @@ def plot_ll_ts(model_data, feature_data, annotations, text_filename, phrase, vid
         time_slot = 0
         while frame < num_frames:
             word,state,start,end = word_state_times[time_slot]
+            # print(word, state, start, end)
+            # if word not in model_data:
+            #     time_slot += 1
+            #     continue # why arent any words in model data? word/state pairing not being made correctly
             if start<=time_col[frame]<=end:
                 max_ll = float('-inf')
                 state = int(re.findall(r'\d+', state)[-1])
@@ -201,20 +146,20 @@ def plot_kl_divergence(model1, model2, compare_states=[], state_names=[]):
 
 if __name__=='__main__':
     # Find a video, plot features/gaussians
-    ark_fp = '/Users/ishan/Documents/Research/08-14-20_Thad_4K.alligator_in_wagon.0000000000.ark'
-    vid_fp = '/Users/ishan/Documents/Research/video_dir/08-14-20_Thad_4K.alligator_in_wagon.0000000000.m4v'
-    eaf_fp = '/Users/ishan/Documents/Research/08-14-20_Thad_4K.alligator_in_wagon.0000000000.eaf'
-    text_fp = '/Users/ishan/Documents/Research/features_ts.txt'
-    ll_fp = '/Users/ishan/Documents/Research/ll_ts.txt'
-    phrase = '08-14-20_Thad_4K.alligator_in_wagon.0000000000'
-    annotations = mlf_to_dict('/Users/ishan/Documents/Research/reduced.mlf')
+    ark_fp = '/home/ishan/Documents/research/ccg/copycat/CopyCat-HTK/projects/MediaPipe/data/ark/Jinghong.alligator_above_bed.1612482965.ark'
+    vid_fp = '/home/ishan/Documents/research/ccg/copycat/DATA/input/Jinghong/alligator_above_bed/1612482965/Jinghong.alligator_above_bed.1612482965.mp4'
+    # eaf_fp = '/home/ishan/Documents/research/ccg/test.eaf' Why isn't this used?
+    text_fp = '/home/ishan/Documents/research/ccg/features_ts.txt'
+    ll_fp = '/home/ishan/Documents/research/ccg/ll_ts.txt'
+    phrase = 'Jinghong.alligator_above_bed.1612482965'
+    annotations = mlf_to_dict('/home/ishan/Documents/research/ccg/copycat/CopyCat-HTK/projects/MediaPipe/results/res_hmm5.mlf')
     feature_data = read_ark_file(ark_fp)
-    macros_fp = '/Users/ishan/Documents/Research/newMacros'
-    feature_labels = json.load(open('/Users/ishan/Documents/Research/features.json'))['selected_features']
+    macros_fp = '/home/ishan/Documents/research/ccg/copycat/CopyCat-HTK/projects/MediaPipe/models/hmm5/newMacros'
+    feature_labels = json.load(open('/home/ishan/Documents/research/ccg/copycat/CopyCat-HTK/projects/MediaPipe/configs/features.json'))['selected_features']
     model_data = make_model_dict(macros_fp, feature_labels)
     video_len = int(float(FFProbe(vid_fp).video[0].duration) * 1000)
     annotations = scale_annotations(annotations, video_len)
     eaf_obj = make_elan(annotations, has_states=True, video_dirs=[vid_fp], \
-        eaf_savedir='/Users/ishan/Documents/Research')[0]
-    plot_ll_ts(model_data, feature_data, annotations, ll_fp, phrase, video_len, feature_nums=range(40))
+        eaf_savedir='/home/ishan/Documents/research/ccg')[0]
+    # plot_ll_ts(model_data, feature_data, annotations, ll_fp, phrase, video_len, feature_nums=range(40)) Adding a video works, trying it without ll_ts
     

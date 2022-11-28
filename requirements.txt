@@ -1,0 +1,12 @@
+ffprobe-python
+filterpy
+joblib
+lap
+lda
+matplotlib
+numpy
+pandas
+pympi-ling
+scikit_learn
+scipy
+tqdm
