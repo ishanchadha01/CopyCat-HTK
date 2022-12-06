@@ -78,7 +78,7 @@ def train(train_iters: list, mean: float, variance: float, transition_prob: floa
     for hmm0_file in tqdm(hmm0_files):
 
         # print(f'Running HRest for {hmm0_file}...')
-        HRest_command = (f'HRest -A -i 60 -C configs/hrest.conf -v 0.1 -I '
+        HRest_command = (f'HRest -A -i 60 -C configs/hrest.conf -v 0.1 -m 1 -I '
                          f'all_labels.mlf -M models/{fold}hmm1 -S lists/{fold}train.data '
                          f'{hmm0_file} >> logs/{fold}train.log')
         os.system(HRest_command)
@@ -97,7 +97,7 @@ def train(train_iters: list, mean: float, variance: float, transition_prob: floa
         for iter_ in tqdm(range(start, n_iters)):
 
             # print(f'Running HERest Iteration: {iter_}...')
-            HERest_command = (f'HERest -A -c 500.0 -v 0.0005 -A -H '
+            HERest_command = (f'HERest -A -s ./stats -c 500.0 -v 0.0005 -A -H '
                             f'models/{fold}hmm{iter_}/newMacros -I all_labels.mlf -M '
                             f'models/{fold}hmm{iter_+1} -S lists/{fold}train.data -T 1 wordList '
                             f'>> logs/{fold}train.log')

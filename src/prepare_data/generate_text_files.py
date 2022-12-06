@@ -189,6 +189,7 @@ def _generate_grammar(phrase_len:list) -> None:
     prepositions = list(prepositions)
     objects = list(objects)
     adjectives = list(adjectives)
+    print(phrase_len)
 
     with open('grammar.txt', 'w') as f:
     

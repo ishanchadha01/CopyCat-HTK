@@ -23,8 +23,9 @@ def create_htk_files(htk_dir: str = os.path.join('data', 'htk'), ark_dir: str = 
     print(len(ark_files))
 
     for ark_file in tqdm.tqdm(ark_files):
+        print(ark_file)
         
-        kaldi_command = (f'~/kaldi/src/featbin/copy-feats-to-htk '
+        kaldi_command = (f'~/Documents/research/ccg/kaldi/src/featbin/copy-feats-to-htk '
                          f'--output-dir={htk_dir} '
                          f'--output-ext=htk '
                          f'--sample-period=40000 '

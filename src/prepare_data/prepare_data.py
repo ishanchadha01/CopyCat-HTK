@@ -16,7 +16,7 @@ import pandas as pd
 from . import create_ark_files, create_htk_files
 from .generate_text_files import generate_text_files
 
-def prepare_data(features_config: dict, users: list, phrase_len:list=[3,4,5], prediction_len:list=[3,4,5]) -> None:
+def prepare_data(features_config: dict, users: list, phrase_len:list=[3], prediction_len:list=[3]) -> None:
 
     """Prepares training data. Creates .ark files, .htk files, wordList,
     dict, grammar, and all_labels.mlf.

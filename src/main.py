@@ -72,7 +72,7 @@ def main():
     parser.add_argument('--random_state', type=int, default=42) #The answer to life, the universe and everything
 
     #Arguments for training
-    parser.add_argument('--train_iters', nargs='*', type=int, default=[2,3,4])
+    parser.add_argument('--train_iters', nargs='*', type=int, default=[2,3,4,5])
     parser.add_argument('--hmm_insertion_penalty', default=-10)
     parser.add_argument('--mean', type=float, default=0.0)
     parser.add_argument('--variance', type=float, default=0.00001)

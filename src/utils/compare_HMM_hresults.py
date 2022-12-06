@@ -3,7 +3,6 @@ from get_confusion_matrix import get_confusion_matrix
 from get_hresults_data import get_hresults_data
 
 
-<<<<<<< HEAD
 def findOccurrences(s, ch):
     return [i for i, letter in enumerate(s) if letter == ch]
 
@@ -96,9 +95,6 @@ def get_hresults_data(results_file):
     return results_dict
 
 output_file = open("./hresults_improved_alphapose.txt", "w")
-=======
-output_file = open("hresults_improved.txt", "w")
->>>>>>> origin/master
 orig_avg_SE = 0
 orig_avg_WE = 0
 new_avg_SE = 0

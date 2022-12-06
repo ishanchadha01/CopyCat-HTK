@@ -40,8 +40,11 @@ def test(start: int, end: int, method: str, insertion_penalty: int, beam_thresho
 
         # HVite_str = (f'HVite -A -H $macros -f -m -S lists/test.data -i $results '
         #              f'-p -10.0 -w wordNet.txt -s 25 dict wordList')
-        HVite_str = (f'HVite -A -H $macros -m -S lists/{fold}test.data -i '
-                     f'$results -p {insertion_penalty} -w wordNet.txt -s 25 dict wordList')
+        # HVite_str = (f'HVite -A -f -H $macros -m -S lists/{fold}test.data -i '
+        #              f'$results -p {insertion_penalty} -w wordNet.txt -s 25 dict wordList')
+        HVite_str = (f'HVite -a -o N -T 1 -H $macros -m -f -S '
+                     f'lists/{fold}train.data -i $results '
+                     f'-p {insertion_penalty} -I all_labels.mlf -w wordNet.txt -s 25 dict wordList')
 
         HVite_cmd = Template(HVite_str)
 
@@ -64,6 +67,8 @@ def test(start: int, end: int, method: str, insertion_penalty: int, beam_thresho
         macros_filepath = f'models/{fold}hmm{i}/newMacros'
         results_filepath = f'results/{fold}res_hmm{i}.mlf'
         hresults_filepath = f'hresults/{fold}res_hmm{i}.txt'
+
+        print("Generating results files")
 
         os.system(HVite_cmd.substitute(macros=macros_filepath,
                                        results=results_filepath))
