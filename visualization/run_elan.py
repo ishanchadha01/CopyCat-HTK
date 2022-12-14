@@ -17,6 +17,7 @@ class ElanGui:
     self.boundary_annotations = {}
     self.eaf_savedir = ""
     self.edited_annotations = {}
+    self.bad_landmarks = {}
 
     elan_exec_text = tk.StringVar()
     elan_exec_text.set("Path to ELAN executable")
@@ -77,7 +78,7 @@ class ElanGui:
     self.mlf_fp_label.grid_forget()
     self.mlf_textbox.grid_forget()
 
-    # Get all videos to iterate over. TODO: Have options for selecting specific videos or something
+    # Get all videos to iterate over
     video_dir = self.video_dir_textbox.get("1.0", "end-1c")
     for root, dirs, files in os.walk(video_dir):
       for video_fp in files:
@@ -117,14 +118,20 @@ class ElanGui:
 
 
   def process_video(self, eaf_obj):
-    # Once the video has been closed out of, reexamine EAF for new boundaries
-    tier_names = eaf_obj.get_tier_names()
+    tier_names = list(eaf_obj.get_tier_names())
+    video_fp = self.video_fp_list[self.video_fp_list_idx]
+
+    # Process frames with bad landmarks
+    if "bad_landmarks" in tier_names:
+      tier_names.remove("bad_landmarks")
+      self.bad_landmarks[video_fp] = eaf_obj.get_annotation_data_for_tier("bad_landmarks")
+
+    # Once the video has been closed out of, reexamine EAF for new word/state boundaries
     new_annotations = {}
-    for tier in list(tier_names):
+    for tier in tier_names:
       new_annotations[tier] = {}
       for start, end, state in eaf_obj.get_annotation_data_for_tier(tier):
         mew_annotations[tier][state] = [start, end]
-    video_fp = self.video_fp_list[self.video_fp_list_idx]
     self.edited_annotations[video_fp] = new_annotations
 
 
