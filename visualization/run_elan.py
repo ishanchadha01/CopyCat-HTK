@@ -84,6 +84,7 @@ class ElanGui:
       for video_fp in files:
         if video_fp.endswith(".mp4"):
           self.video_fp_list.append(os.path.join(root, video_fp))
+    self.video_fp_list = list(set(self.video_fp_list))
     first_video = self.video_fp_list[0]
     video_len = int(float(FFProbe(first_video).video[0].duration) * 1000)
     self.boundary_annotations = scale_annotations(self.boundary_annotations, video_len)
@@ -95,12 +96,13 @@ class ElanGui:
     self.eaf_savedir_label.grid_forget()
     self.eaf_savedir_textbox.grid_forget()
 
-    self.next_video_button.grid(row=1, column=1)
+    self.next_video_button.grid(row=1, column=2)
 
 
   def next_video(self):
     # Process video at current index
     video_fp = self.video_fp_list[self.video_fp_list_idx]
+    print(video_fp, self.video_fp_list, self.video_fp_list_idx)
     eaf_obj = make_elan(self.boundary_annotations, has_states=True, video_dirs=[video_fp], \
       eaf_savedir=self.eaf_savedir)[0]
     eaf_path = os.path.join(self.eaf_savedir, os.path.basename(os.path.splitext(video_fp)[0])) + ".eaf"
@@ -131,7 +133,7 @@ class ElanGui:
     for tier in tier_names:
       new_annotations[tier] = {}
       for start, end, state in eaf_obj.get_annotation_data_for_tier(tier):
-        mew_annotations[tier][state] = [start, end]
+        new_annotations[tier][state] = [start, end]
     self.edited_annotations[video_fp] = new_annotations
 
 
