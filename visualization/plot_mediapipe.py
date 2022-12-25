@@ -4,7 +4,7 @@ import time
 
 
 def draw_mediapipe_landmarks(video_filepath="/home/ishan/Documents/research/ccg/copycat/DATA/input/Jinghong/alligator_above_bed/1612482965/Jinghong.alligator_above_bed.1612482965.mp4", \
-  new_video_filepath="/home/ishan/Documents/research/ccg/elan/landmarks.mp4"):
+  new_video_filepath="/home/ishan/Documents/research/ccg/copycat/DATA/ouytput/Jinghong/alligator_above_bed/1612482965/Jinghong.alligator_above_bed.1612482965.mp4"):
 
   mp_drawing = mp.solutions.drawing_utils
   mp_holistic = mp.solutions.holistic
@@ -14,7 +14,7 @@ def draw_mediapipe_landmarks(video_filepath="/home/ishan/Documents/research/ccg/
       min_detection_confidence=0.5, min_tracking_confidence=0.1)
   cap = cv2.VideoCapture(video_filepath)
   result = cv2.VideoWriter(new_video_filepath, 
-                         cv2.VideoWriter_fourcc(*'MP4V'),
+                         int(cap.get(cv2.CAP_PROP_FOURCC)),
                          10, (int(cap.get(3)), int(cap.get(4))))
   start = time.time()
   num_frames = 0

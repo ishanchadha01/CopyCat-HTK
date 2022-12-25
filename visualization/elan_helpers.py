@@ -103,7 +103,7 @@ def scale_annotations(annotation_data: dict, video_len: int):
             annotation_data[filename][word] = [[state, start*mult, end*mult] for state, start, end in state_list]
     return annotation_data
 
-
+# TODO: incorrect implementation, should find max of min dist from Gaussians rather than max of max dist from Gaussians
 def make_ll_dict(model_data, feature_data, phrase, annotations, feature_labels, video_len):
     # returns dict with {feature: [max_ll for each frame]}
     num_frames = feature_data.shape[0]
@@ -136,6 +136,7 @@ def make_ll_dict(model_data, feature_data, phrase, annotations, feature_labels, 
     return ll_dict
 
 
+# TODO: incorrect implementation, should find max of min dist from Gaussians rather than max of max dist from Gaussians
 def get_ll_word(word_ll, phrase, annotations, model_data, feature_data, feature_labels):
     # gets max likelihood for word for each feature
     # for ark, if frame corresponds to correct word then add it to data col
@@ -172,6 +173,7 @@ def get_ll_word(word_ll, phrase, annotations, model_data, feature_data, feature_
     return ll_list
 
 
+# TODO: incorrect implementation, should find max of min dist from Gaussians rather than max of max dist from Gaussians
 def rank_ll(word1, word2, annotations, model_data, feature_data, feature_labels, data_dir):
     phrases = annotations.keys()
     print('Finding word1 medians')
@@ -275,6 +277,53 @@ def get_feature_labels(feature_fp: str) -> dict:
         features = json.load(fp)['selected_features']
         feature_label_dict = { num: feature for num, feature in enumerate(features) }
     return feature_label_dict
+
+
+def compute_frame_dists(gmmhmm_model, feature_data, annotations, feature_labels, video_len):
+    """
+    Computes distance of each feature from the Gaussians for that feature, at each frame
+    Returns dict with {feature: [min_dist for each frame]}
+    """
+
+    # Create timestamped column based on video length and the number of frames
+    num_frames = feature_data.shape[0]
+    num_features = feature_data.shape[1]
+    frame_len = video_len / num_frames
+    time_col = [frame_len * i for i in range(feature_data.shape[0])]
+
+    # Organize word and state start and end timestamps so that we can match frames to them
+    dist_dict = {}
+    word_state_times = [(word, state, start, end) for word, state_info in\
+        annotations[phrase].items() for state, start, end in state_info]
+
+    # Make new column for each feature
+    for feature_num in range(num_features):
+        feat_over_time = list(feature_data[:, feature_num])
+        data_col = []
+        frame = 0
+        time_slot = 0
+
+        # Increment frame number in order to match with timestamp
+        while frame < num_frames:
+            word,state,start,end = word_state_times[time_slot]
+
+            # If frame number matches with time stamps of word/state
+            if start<=time_col[frame]<=end:
+                min_dist = float('inf')
+                state = int(re.findall(r'\d+', state)[-1])
+                for mixture in model_data[word][state].values():
+                    mean = mixture['mean'][feature_labels[feature_num]]
+                    var = mixture['variance'][feature_labels[feature_num]]
+                    dist = norm.logpdf(feat_over_time[frame], mean, var)
+                    min_dist = min(dist, min_dist)
+                data_col.append(min_dist)
+                frame += 1
+            else:
+              time_slot += 1
+        dist_dict[feature_labels[feature_num]] = data_col
+    return dist_dict
+
+
 
 
 if __name__=='__main__':
