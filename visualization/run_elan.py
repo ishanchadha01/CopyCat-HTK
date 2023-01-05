@@ -57,7 +57,8 @@ class ElanGui:
     self.next_video_button = tk.Button(self.window, text="Next Video", command=self.next_video)
 
     self.close_button = tk.Button(self.window, text="Quit", command=self.window.destroy)
-    self.close_button.grid(row=6, column=2)
+    self.close_button.grid(row=7, column=2)
+
 
     self.window.mainloop()
 
@@ -96,7 +97,9 @@ class ElanGui:
     self.eaf_savedir_label.grid_forget()
     self.eaf_savedir_textbox.grid_forget()
 
+    # Create next video button and run first video
     self.next_video_button.grid(row=1, column=2)
+    self.next_video()
 
 
   def next_video(self):

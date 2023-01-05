@@ -4,7 +4,9 @@ import json
 from tqdm import tqdm
 
 import numpy as np
+import pandas as pd
 from scipy.stats import norm 
+import matplotlib.pyplot as plt
 
 
 def read_ark_file(ark_filepath):
@@ -279,7 +281,7 @@ def get_feature_labels(feature_fp: str) -> dict:
     return feature_label_dict
 
 
-def compute_frame_dists(gmmhmm_model, feature_data, annotations, feature_labels, video_len):
+def compute_frame_dists(gmmhmm_model, feature_data, annotations, feature_labels, phrase, video_len):
     """
     Computes distance of each feature from the Gaussians for that feature, at each frame
     Returns dict with {feature: [min_dist for each frame]}
@@ -311,7 +313,7 @@ def compute_frame_dists(gmmhmm_model, feature_data, annotations, feature_labels,
             if start<=time_col[frame]<=end:
                 min_dist = float('inf')
                 state = int(re.findall(r'\d+', state)[-1])
-                for mixture in model_data[word][state].values():
+                for mixture in gmmhmm_model[word][state].values():
                     mean = mixture['mean'][feature_labels[feature_num]]
                     var = mixture['variance'][feature_labels[feature_num]]
                     dist = norm.logpdf(feat_over_time[frame], mean, var)
@@ -322,6 +324,7 @@ def compute_frame_dists(gmmhmm_model, feature_data, annotations, feature_labels,
               time_slot += 1
         dist_dict[feature_labels[feature_num]] = data_col
     return dist_dict
+
 
 
 
