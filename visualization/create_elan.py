@@ -139,7 +139,7 @@ def plot_ll_ts(model_data, feature_data, annotations, text_filename, phrase, vid
 				writer.writerows(list(np.array(data_cols).astype(int).T))
 
 
-def label_worst_frames(dist_dict, eaf_path, video_len, proportion=0.2):
+def label_worst_frames(dists, eaf_path, video_len, proportion=0.2):
 		# get min prop of dist dict and change annotations of annotation file to be labeled something else?
 		# or make new annotation for each word?
 

@@ -35,29 +35,53 @@ class ElanGui:
     self.mlf_textbox.insert("end", "/home/ishan/Documents/research/ccg/copycat/CopyCat-HTK/projects/MediaPipe/results/res_hmm5.mlf")
     self.mlf_textbox.grid(row=2, column=2)
 
+    macros_fp_text = tk.StringVar()
+    macros_fp_text.set("Filepath where GMM means/vars per feature, state, and word are located")
+    self.macros_fp_label = tk.Label(self.window, textvariable=macros_fp_text, height=2)
+    self.macros_fp_label.grid(row=3, column=1)
+    self.macros_textbox = tk.Text(self.window, height=2, width=40)
+    self.macros_textbox.insert("end", "/home/ishan/Documents/research/ccg/copycat/CopyCat-HTK/projects/MediaPipe/models/hmm5/newMacros")
+    self.macros_textbox.grid(row=3, column=2)
+
+    feature_labels_text = tk.StringVar()
+    feature_labels_text.set("JSON file with all feature names")
+    self.feature_labels_label = tk.Label(self.window, textvariable=feature_labels_text, height=2)
+    self.feature_labels_label.grid(row=4, column=1)
+    self.feature_labels_textbox = tk.Text(self.window, height=2, width=40)
+    self.feature_labels_textbox.insert("end", "/home/ishan/Documents/research/ccg/copycat/CopyCat-HTK/projects/MediaPipe/configs/features.json")
+    self.feature_labels_textbox.grid(row=4, column=2)
+
+    feature_data_text = tk.StringVar()
+    feature_data_text.set("Directory with ARK files containing all extracted feature data")
+    self.feature_data_label = tk.Label(self.window, textvariable=feature_data_text, height=2)
+    self.feature_data_label.grid(row=5, column=1)
+    self.feature_data_textbox = tk.Text(self.window, height=2, width=40)
+    self.feature_data_textbox.insert("end", "/home/ishan/Documents/research/ccg/copycat/CopyCat-HTK/projects/MediaPipe/data/ark")
+    self.feature_data_textbox.grid(row=5, column=2)
+
     video_dir_text = tk.StringVar()
     video_dir_text.set("Video directory name")
     self.video_dir_label = tk.Label(self.window, textvariable=video_dir_text, height=2)
-    self.video_dir_label.grid(row=3, column=1)
+    self.video_dir_label.grid(row=6, column=1)
     self.video_dir_textbox = tk.Text(self.window, height=2, width=40)
     self.video_dir_textbox.insert("end", "/home/ishan/Documents/research/ccg/copycat/DATA/input")
-    self.video_dir_textbox.grid(row=3, column=2)
+    self.video_dir_textbox.grid(row=6, column=2)
 
     eaf_savedir_text = tk.StringVar()
     eaf_savedir_text.set("Elan annotation file save directory")
     self.eaf_savedir_label = tk.Label(self.window, textvariable=eaf_savedir_text, height=2)
-    self.eaf_savedir_label.grid(row=4, column=1)
+    self.eaf_savedir_label.grid(row=7, column=1)
     self.eaf_savedir_textbox = tk.Text(self.window, height=2, width=40)
     self.eaf_savedir_textbox.insert("end", "/home/ishan/Documents/research/ccg/elan")
-    self.eaf_savedir_textbox.grid(row=4, column=2)
+    self.eaf_savedir_textbox.grid(row=7, column=2)
 
     self.start_loop_button = tk.Button(self.window, text="Start Video Loop", command=self.launch_elan)
-    self.start_loop_button.grid(row=5, column=2)
+    self.start_loop_button.grid(row=8, column=2)
 
     self.next_video_button = tk.Button(self.window, text="Next Video", command=self.next_video)
 
     self.close_button = tk.Button(self.window, text="Quit", command=self.window.destroy)
-    self.close_button.grid(row=7, column=2)
+    self.close_button.grid(row=9, column=2)
 
 
     self.window.mainloop()
@@ -78,6 +102,23 @@ class ElanGui:
     self.boundary_annotations = mlf_to_dict(mlf_fp)
     self.mlf_fp_label.grid_forget()
     self.mlf_textbox.grid_forget()
+
+    # Get feature labels from JSON file
+    feature_labels_fp = self.feature_labels_textbox.get("1.0", "end-1c")
+    self.feature_labels = json.load(open(feature_labels_fp))['selected_features']
+    self.feature_labels_label.grid_forget()
+    self.feature_labels_textbox.grid_forget()
+
+    # Get directory containing feature data for each video
+    self.feature_data_dir = self.feature_data_textbox.get("1.0", "end-1c")
+    self.feature_data_label.grid_forget()
+    self.feature_data_textbox.grid_forget()
+
+    # Get model data from GMMs file
+    macros_fp = self.macros_textbox.get("1.0", "end-1c")
+    self.model_data = make_model_dict(macros_fp, self.feature_labels)
+    self.macros_fp_label.grid_forget()
+    self.macros_textbox.grid_forget()
 
     # Get all videos to iterate over
     video_dir = self.video_dir_textbox.get("1.0", "end-1c")
@@ -108,7 +149,17 @@ class ElanGui:
     print(video_fp, self.video_fp_list, self.video_fp_list_idx)
     eaf_obj = make_elan(self.boundary_annotations, has_states=True, video_dirs=[video_fp], \
       eaf_savedir=self.eaf_savedir)[0]
-    eaf_path = os.path.join(self.eaf_savedir, os.path.basename(os.path.splitext(video_fp)[0])) + ".eaf"
+    phrase = os.path.basename(os.path.splitext(video_fp)[0])
+    eaf_path = os.path.join(self.eaf_savedir, phrase) + ".eaf"
+
+    # Get feature data from ARK
+    ark_fp = os.path.join(self.feature_data_dir, phrase) + ".ark"
+    feature_data = read_ark_file(ark_fp)
+
+    # Label bad frames
+    video_len = int(float(FFProbe(video_fp).video[0].duration) * 1000)
+    dists = compute_frame_dists(self.model_data, feature_data, self.boundary_annotations, self.feature_labels, phrase, video_len)
+    label_worst_frames(dists, eaf_path, video_len)
 
     # TODO: test on different OSs, possibly remove conditional
     if platform.system() == "Linux":
@@ -117,7 +168,6 @@ class ElanGui:
       os.system(self.elan_exec + " " + eaf_path)
     elif platform.system == "Windows":
       os.system(self.elan_exec + " " + eaf_path)
-
     self.process_video(eaf_obj)
     self.video_fp_list_idx += 1
 
