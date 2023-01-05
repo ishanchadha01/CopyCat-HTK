@@ -1,4 +1,5 @@
 from create_elan import *
+from plot_mediapipe import draw_mediapipe_landmarks
 import tkinter as tk
 
 import os
@@ -75,13 +76,20 @@ class ElanGui:
     self.eaf_savedir_textbox.insert("end", "/home/ishan/Documents/research/ccg/elan")
     self.eaf_savedir_textbox.grid(row=7, column=2)
 
+    self.toggle_landmarks = tk.IntVar()
+    self.landmarks_checkbox = tk.Checkbutton(self.window, text="Show Mediapipe Landmarks", variable=self.toggle_landmarks, onvalue=1)
+    self.landmarks_checkbox.grid(row=8, column=1)
+    self.landmarks_textbox = tk.Text(self.window, height=2, width=40)
+    self.landmarks_textbox.insert("end", "/home/ishan/Documents/research/ccg/elan")
+    self.landmarks_textbox.grid(row=8, column=2)
+
     self.start_loop_button = tk.Button(self.window, text="Start Video Loop", command=self.launch_elan)
-    self.start_loop_button.grid(row=8, column=2)
+    self.start_loop_button.grid(row=9, column=2)
 
     self.next_video_button = tk.Button(self.window, text="Next Video", command=self.next_video)
 
     self.close_button = tk.Button(self.window, text="Quit", command=self.window.destroy)
-    self.close_button.grid(row=9, column=2)
+    self.close_button.grid(row=10, column=2)
 
 
     self.window.mainloop()
@@ -120,6 +128,12 @@ class ElanGui:
     self.macros_fp_label.grid_forget()
     self.macros_textbox.grid_forget()
 
+    # Check whether to display landmarks for each video
+    self.show_landmarks = self.toggle_landmarks.get()
+    self.landmarks_dir = self.landmarks_textbox.get("1.0", "end-1c")
+    self.landmarks_checkbox.grid_forget()
+    self.landmarks_textbox.grid_forget()
+
     # Get all videos to iterate over
     video_dir = self.video_dir_textbox.get("1.0", "end-1c")
     for root, dirs, files in os.walk(video_dir):
@@ -146,10 +160,13 @@ class ElanGui:
   def next_video(self):
     # Process video at current index
     video_fp = self.video_fp_list[self.video_fp_list_idx]
-    print(video_fp, self.video_fp_list, self.video_fp_list_idx)
+    phrase = os.path.basename(os.path.splitext(video_fp)[0])
+    if self.show_landmarks:
+      video_fp = draw_mediapipe_landmarks(video_filepath=video_fp, new_video_filepath=os.path.join(self.landmarks_dir, phrase) + ".mp4")
+
+    # Make elan file with annotations
     eaf_obj = make_elan(self.boundary_annotations, has_states=True, video_dirs=[video_fp], \
       eaf_savedir=self.eaf_savedir)[0]
-    phrase = os.path.basename(os.path.splitext(video_fp)[0])
     eaf_path = os.path.join(self.eaf_savedir, phrase) + ".eaf"
 
     # Get feature data from ARK
