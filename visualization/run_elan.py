@@ -5,6 +5,7 @@ import tkinter as tk
 import os
 import platform 
 import subprocess
+import threading
 
 
 class ElanGui:
@@ -17,8 +18,8 @@ class ElanGui:
     self.video_fp_list_idx = 0
     self.boundary_annotations = {}
     self.eaf_savedir = ""
-    self.edited_annotations = {}
     self.bad_landmarks = {}
+    self.feature_name_display = []
 
     elan_exec_text = tk.StringVar()
     elan_exec_text.set("Path to ELAN executable")
@@ -176,16 +177,28 @@ class ElanGui:
     # Label bad frames
     video_len = int(float(FFProbe(video_fp).video[0].duration) * 1000)
     dists = compute_frame_dists(self.model_data, feature_data, self.boundary_annotations, self.feature_labels, phrase, video_len)
-    label_worst_frames(dists, eaf_path, video_len)
+    self.bad_frames, self.outliers = get_outliers(dists)
+    label_worst_frames(self.bad_frames, self.outliers, eaf_path, video_len)
+    
+    # Create feature display
+    state_name = tk.StringVar()
+    state_name.set("Enter state and word names")
+    self.state_name_label = tk.Label(self.window, textvariable=state_name, height=2)
+    self.state_name_label.grid(row=1, column=1)
+    self.word_name_textbox = tk.Text(self.window, height=2, width=20)
+    self.word_name_textbox.grid(row=1, column=2)
+    self.state_name_textbox = tk.Text(self.window, height=2, width=20)
+    self.state_name_textbox.grid(row=1, column=3)
+    self.check_state_features_button = tk.Button(self.window, text="Submit", command=lambda: self.check_state_features(video_len))
+    self.check_state_features_button.grid(row=2, column=2)
+    self.window.update()
 
-    # TODO: test on different OSs, possibly remove conditional
-    if platform.system() == "Linux":
-      os.system(self.elan_exec + " " + eaf_path)
-    elif platform.system == "Darwin":
-      os.system(self.elan_exec + " " + eaf_path)
-    elif platform.system == "Windows":
-      os.system(self.elan_exec + " " + eaf_path)
-    self.process_video(eaf_obj)
+    # Execute ELAN
+    t = threading.Thread(target=lambda: self.execute_elan(eaf_path))
+    t.daemon = True
+    t.start()
+
+    # self.process_video(eaf_obj)
     self.video_fp_list_idx += 1
 
 
@@ -204,7 +217,45 @@ class ElanGui:
       new_annotations[tier] = {}
       for start, end, state in eaf_obj.get_annotation_data_for_tier(tier):
         new_annotations[tier][state] = [start, end]
-    self.edited_annotations[video_fp] = new_annotations
+    self.boundary_annotations[video_fp] = new_annotations
+
+
+  def check_state_features(self, video_len):
+    # Check if any features are outliers, and display such features
+    feature_outliers_dict = feature_outliers_by_state(self.boundary_annotations, self.outliers, self.feature_labels, video_len)
+    word= self.word_name_textbox.get("1.0", "end-1c")
+    state = self.state_name_textbox.get("1.0", "end-1c")
+
+    # Clear display if new one requested
+    for display in self.feature_name_display:
+      display.grid_forget()
+
+    self.feature_name_display = []
+    self.close_button.grid_forget()
+    for tk_row, (name, value) in enumerate(feature_outliers_dict[word][state].items()):
+      feature_name = tk.StringVar()
+      feature_name.set(name)
+      feature_value = tk.StringVar()
+      feature_value.set(value)
+      feature_name_label = tk.Label(self.window, textvariable=feature_name, height=2)
+      feature_name_label.grid(row=tk_row+3, column=1)
+      feature_value_label = tk.Label(self.window, textvariable=feature_value, height=2)
+      feature_value_label.grid(row=tk_row+3, column=2)
+      self.feature_name_display.append(feature_name_label)
+      self.feature_name_display.append(feature_value_label)
+    self.close_button.grid(row=30, column=2)
+
+
+  def execute_elan(self, eaf_path):
+    # TODO: test on different OSs, possibly remove conditional
+    # Execute ELAN
+    if platform.system() == "Linux":
+      elan_proc = subprocess.Popen([self.elan_exec, eaf_path])
+    elif platform.system == "Darwin":
+      elan_proc = subprocess.Popen([self.elan_exec, eaf_path])
+    elif platform.system == "Windows":
+      elan_proc = subprocess.Popen([self.elan_exec, eaf_path])
+
 
 
 if __name__=='__main__':

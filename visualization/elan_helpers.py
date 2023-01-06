@@ -326,6 +326,65 @@ def compute_frame_dists(gmmhmm_model, feature_data, annotations, feature_labels,
     return dist_dict
 
 
+def get_outliers(dists, proportion=0.001):
+
+    # Get outliers from frame dists
+    df = pd.DataFrame(dists)
+    arr = df.to_numpy()
+    medians = np.median(arr, axis=1)
+
+    outliers = arr
+    for i in range(arr.shape[0]):
+      q1 = np.quantile(arr[i], .25)
+      q3 = np.quantile(arr[i], .75)
+      iqr = q3 - q1
+      outliers[i] = np.array([
+        j if j<(q1-1.5*iqr)
+        else 0
+        for j in arr[i]
+      ])
+
+    bad_frames = []
+    for feat_outliers in outliers:
+      num_outliers = np.count_nonzero(feat_outliers)
+      bad_frames.append(num_outliers > len(feat_outliers) * proportion)
+    return bad_frames, outliers
+
+
+def feature_outliers_by_state(annotations, outliers, feature_labels, video_len):
+  # For every state, store the most outlying value of each feature, sorted in descending order, for a specific file
+  
+  # Create list of {frame: [start, end]} based on video length
+  num_frames = len(outliers)
+  frame_len = video_len / num_frames
+  time_col = [
+    (num+1)*frame_len
+    for num in range(num_frames)
+  ]
+
+  # Create dict of outlying features for each state
+  feature_outliers_dict = {}
+  frame_idx = 0
+  for filename, word_dict in annotations.items():
+    for word, state_times in word_dict.items():
+      if word not in feature_outliers_dict:
+        feature_outliers_dict[word] = {}
+      for state, start, end in state_times:
+        if state not in feature_outliers_dict[word]:
+          feature_outliers_dict[word][state] = {}
+
+        # Check if frame and state align
+        while frame_idx < num_frames-1 and start<=time_col[frame_idx]<=end:
+          for feature_num, value in enumerate(outliers[frame_idx]):
+
+            # If this feature value is an outlier, then add the feature/value pair to state corresponding to frame
+            if value != 0:
+              feature_name = feature_labels[feature_num]
+              if feature_name not in feature_outliers_dict[word][state]:
+                feature_outliers_dict[word][state][feature_name] = 0
+              feature_outliers_dict[word][state][feature_name] = max(abs(feature_outliers_dict[word][state][feature_name]), abs(value))
+          frame_idx += 1
+  return feature_outliers_dict
 
 
 

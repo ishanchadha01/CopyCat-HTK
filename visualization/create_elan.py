@@ -1,5 +1,5 @@
 from pympi.Elan import Eaf, to_eaf
-from elan_helpers import read_ark_file, mlf_to_dict, make_model_dict, compute_frame_dists
+from elan_helpers import read_ark_file, mlf_to_dict, make_model_dict, compute_frame_dists, get_outliers, feature_outliers_by_state
 import os
 import csv
 import shutil
@@ -140,41 +140,17 @@ def plot_ll_ts(model_data, feature_data, annotations, text_filename, phrase, vid
         writer.writerows(list(np.array(data_cols).astype(int).T))
 
 
-def label_worst_frames(dists, eaf_path, video_len, proportion=0.2):
+def label_worst_frames(bad_frames, outliers, eaf_path, video_len):
     # get min prop of dist dict and change annotations of annotation file to be labeled something else?
     # or make new annotation for each word?
-
-    # Get outliers from frame dists
-    df = pd.DataFrame(dists)
-    arr = df.to_numpy()
-    medians = np.median(arr, axis=1)
-    q1=df.quantile(0.25)
-    q3=df.quantile(0.75)
-    IQR=q3-q1
-
-    outliers = arr
-    for i in range(arr.shape[0]):
-      q1 = np.quantile(arr[i], .25)
-      q3 = np.quantile(arr[i], .75)
-      iqr = q3 - q1
-      outliers[i] = np.array([
-        j if j<(q1-1.5*iqr)
-        else 0
-        for j in arr[i]
-      ])
-
-    bad_frames = []
-    for feat_outliers in outliers:
-      num_outliers = np.count_nonzero(feat_outliers)
-      bad_frames.append(num_outliers > len(feat_outliers) * proportion)
     
     # Add bad frames as annotations in new tier
     eaf_obj = Eaf(eaf_path)
     eaf_obj.add_tier("bad_frames")
     for frame_num, is_frame_bad in enumerate(bad_frames):
       if is_frame_bad:
-        start = (frame_num-1)/len(outliers) * video_len
-        end = frame_num/len(outliers) * video_len
+        start = frame_num/len(outliers) * video_len
+        end = (frame_num+1)/len(outliers) * video_len
         eaf_obj.add_annotation("bad_frames", int(start), int(end), "")
     to_eaf(eaf_path, eaf_obj)
     return eaf_path
