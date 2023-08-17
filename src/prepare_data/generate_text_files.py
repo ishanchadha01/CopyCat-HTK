@@ -15,8 +15,11 @@ import os
 import glob
 from io import TextIOWrapper
 
+import string
 
-def generate_text_files(prediction_len:list) -> None:
+from numpy.lib.arraysetops import unique
+
+def generate_text_files(features_dir: str, isFingerspelling: bool, isSingleWord: bool, unique_words: set = None) -> None:
     """Creates all text files needed to train/test HMMs with HTK,
     including wordList, dict, grammar, and all_labels.mlf.
     
@@ -26,20 +29,19 @@ def generate_text_files(prediction_len:list) -> None:
         Unix style pathname pattern pointing to all the features
         extracted from training data.
     """
+    if not unique_words:
+        unique_words = _get_unique_words(features_dir)
+
+    _generate_word_list(unique_words, isFingerspelling)
+
+    _generate_word_dict(unique_words, isFingerspelling)
+
+    _generate_grammar(unique_words, features_dir, isFingerspelling, isSingleWord)
+
+    _generate_mlf_file(isFingerspelling)
 
 
-    unique_words = _get_unique_words()
-
-    _generate_word_list(unique_words)
-
-    _generate_word_dict(unique_words)
-
-    _generate_grammar(prediction_len)
-
-    _generate_mlf_file()
-
-
-def _get_unique_words() -> set:
+def _get_unique_words(features_dir: str) -> set:
     """Gets all unique words from a data set.
 
     Parameters
@@ -55,21 +57,26 @@ def _get_unique_words() -> set:
     """
 
     unique_words = set()
-    htk_filepaths = glob.glob('data/htk/*htk')
+    features_filepaths = glob.glob(os.path.join(features_dir, '**/*.data'), recursive = True)
+    features_filepaths.extend(glob.glob(os.path.join(features_dir, '**/*.json'), recursive = True))
     split_index = 1
 
-    for htk_filepath in htk_filepaths:
-        filename = htk_filepath.split('/')[-1]
-        phrase = filename.split('.')[split_index].split('_')
-        phrase = [word.lower() for word in phrase]
-        unique_words = unique_words.union(phrase)
+    for features_filepath in features_filepaths:
+        # filename = features_filepath.split('/')[-1]
+        # phrase = filename.rsplit('.', 4)[split_index].split('_')
+        # phrase = [word.lower() for word in phrase]
+        # unique_words = unique_words.union(phrase)
+        # TODO: changing this because of format of data, but this should be standardized
+        word = features_filepath.split('/')[-2]
+        unique_words.add(word)
+
 
     unique_words = sorted(unique_words)
-
+    print("Unique Words: ", unique_words)
     return unique_words
 
 
-def _generate_word_list(unique_words: list) -> None:
+def _generate_word_list(unique_words: list, is_fingerspelling: bool) -> None:
     """Generates wordList file containing all unique words and silences.
 
     Parameters
@@ -77,8 +84,10 @@ def _generate_word_list(unique_words: list) -> None:
     unique_words : set
         Set of all words found in the training data.
     """
-    
-    word_list = list(unique_words)
+    if is_fingerspelling:
+        word_list = list(string.ascii_lowercase)
+    else:
+        word_list = list(unique_words)
     word_list += ['sil0', 'sil1']
 
     with open('wordList', 'w') as f:
@@ -88,7 +97,7 @@ def _generate_word_list(unique_words: list) -> None:
         f.write('{}'.format(word_list[-1]))
 
 
-def _generate_word_dict(unique_words: list) -> None:
+def _generate_word_dict(unique_words: list, is_fingerspelling: bool) -> None:
     """Generates dict file containing key-value pairs of words. In our
     case, the key and value are both the single, unique word.
 
@@ -106,10 +115,28 @@ def _generate_word_dict(unique_words: list) -> None:
         f.write('SENT-START [] sil0\n')
         f.write('SENT-END [] sil1\n')
         
-        for word in word_list[:-1]:
-            f.write('{} {}\n'.format(word, word))
+        for word in word_list[:-2]:
+            if is_fingerspelling:
+                f.write('{} {}\n'.format(word, ' '.join(word)))
+            else:
+                f.write('{} {}\n'.format(word, word))
+        f.write('{} {}\n'.format(word_list[-2], word_list[-2]))
         f.write('{} {}\n'.format(word_list[-1], word_list[-1]))
-
+    if is_fingerspelling:
+        with open('dict_tri', 'w') as f:
+            f.write('SENT-START [] sil0\n')
+            f.write('SENT-END [] sil1\n')
+            
+            for word in word_list[:-2]:
+                letters = list(word)
+                letters.insert(0, "sil0")
+                letters.append("sil1")
+                f.write('{} '.format(letters[0]))
+                for i in range(len(letters)-2):
+                    f.write('{}+{}-{} '.format(letters[i], letters[i+1], letters[i+2]))
+                f.write('{}\n'.format(letters[-1]))
+            f.write('{} {}\n'.format(word_list[-2], word_list[-2]))
+            f.write('{} {}\n'.format(word_list[-1], word_list[-1]))
 
 def _write_grammar_line(
         f: TextIOWrapper, part_of_speech: str, words: list, n='') -> None:
@@ -137,7 +164,7 @@ def _write_grammar_line(
     f.write('{};\n'.format(words[-1]))
 
 
-def _generate_grammar(phrase_len:list) -> None:
+def _generate_grammar(unique_words: set, features_dir: str, isFingerspelling: bool, isSingleWord: bool) -> None:
     """Creates rule-based grammar depending on the length of the longest
     phrase of the dataset.
 
@@ -147,28 +174,40 @@ def _generate_grammar(phrase_len:list) -> None:
         Unix style pathname pattern pointing to all the features
         extracted from training data.
     """
-
+    if isFingerspelling or isSingleWord:
+        with open('grammar.txt', 'w') as f:
+            _write_grammar_line(f, 'word', unique_words)
+            f.write('\n')
+            f.write('(SENT-START $word SENT-END)')
+            f.write('\n')
+        f.close()
+        print("DO")
+        return
+    
     subjects = set()
     prepositions = set()
     objects = set()
     adjectives = set()
-    htk_filepaths = glob.glob('data/htk/*htk')
+    max_phrase_len = 0
+    features_filepaths = glob.glob(os.path.join(features_dir, '**/*.data'), recursive = True)
+    features_filepaths.extend(glob.glob(os.path.join(features_dir, '**/*.json'), recursive = True))
     split_index = 1
 
-    for htk_filepath in htk_filepaths:
-        filename = htk_filepath.split('/')[-1]
-        phrase = filename.split('.')[split_index].split('_')
+    for features_filepath in features_filepaths:
+        filename = features_filepath.split('/')[-1]
+        phrase = filename.rsplit('.', 4)[split_index].split('_')
         phrase = [word.lower() for word in phrase]
-        current_phrase_len = len(phrase)
+        phrase_len = len(phrase)
+        max_phrase_len = max(phrase_len, max_phrase_len)
 
-        if current_phrase_len == 3:
+        if phrase_len == 3:
 
             subject, preposition, object_ = phrase
             subjects.add(subject)
             prepositions.add(preposition)
             objects.add(object_)
 
-        elif current_phrase_len == 4:
+        elif phrase_len == 4:
 
             subject, preposition, adjective, object_ = phrase
             subjects.add(subject)
@@ -176,7 +215,7 @@ def _generate_grammar(phrase_len:list) -> None:
             adjectives.add(adjective)
             objects.add(object_)
 
-        elif current_phrase_len == 5:
+        elif phrase_len == 5:
 
             adjective_1, subject, preposition, adjective_2, object_ = phrase
             adjectives.add(adjective_1)
@@ -189,11 +228,10 @@ def _generate_grammar(phrase_len:list) -> None:
     prepositions = list(prepositions)
     objects = list(objects)
     adjectives = list(adjectives)
-    print(phrase_len)
 
     with open('grammar.txt', 'w') as f:
     
-        if phrase_len == [3]:
+        if max_phrase_len == 3:
 
             _write_grammar_line(f, 'subject', subjects)
             _write_grammar_line(f, 'preposition', prepositions)
@@ -201,27 +239,8 @@ def _generate_grammar(phrase_len:list) -> None:
             f.write('\n')
             f.write('(SENT-START $subject $preposition $object SENT-END)')
             f.write('\n')
-
-        elif phrase_len == [4]:
-            _write_grammar_line(f, 'subject', subjects)
-            _write_grammar_line(f, 'preposition', prepositions)
-            _write_grammar_line(f, 'adjective', adjectives)
-            _write_grammar_line(f, 'object', objects)
-            f.write('\n')
-            f.write('(SENT-START $subject $preposition $adjective $object SENT-END)')
-            f.write('\n')
-        
-        elif phrase_len == [5]:
-            _write_grammar_line(f, 'adjective', adjectives, 1)
-            _write_grammar_line(f, 'subject', subjects)
-            _write_grammar_line(f, 'preposition', prepositions)
-            _write_grammar_line(f, 'adjective', adjectives, 2)
-            _write_grammar_line(f, 'object', objects)
-            f.write('\n')
-            f.write('(SENT-START $adjective1 $subject $preposition $adjective2 $object SENT-END)')
-            f.write('\n')         
-                
-        elif phrase_len == [3, 4]:
+            
+        elif max_phrase_len == 4:
 
            _write_grammar_line(f, 'subject', subjects)
            _write_grammar_line(f, 'preposition', prepositions)
@@ -230,19 +249,8 @@ def _generate_grammar(phrase_len:list) -> None:
            f.write('\n')
            f.write('(SENT-START $subject $preposition [$adjective] $object SENT-END)')
            f.write('\n')
-        
-        elif phrase_len == [4, 5]:
 
-            _write_grammar_line(f, 'adjective', adjectives, 1)
-            _write_grammar_line(f, 'subject', subjects)
-            _write_grammar_line(f, 'preposition', prepositions)
-            _write_grammar_line(f, 'adjective', adjectives, 2)
-            _write_grammar_line(f, 'object', objects)
-            f.write('\n')
-            f.write('(SENT-START [$adjective1] $subject $preposition $adjective2 $object SENT-END)')
-            f.write('\n')
-
-        elif phrase_len == [3, 4, 5] or phrase_len == [3, 5]:
+        elif max_phrase_len == 5:
 
             _write_grammar_line(f, 'adjective', adjectives, 1)
             _write_grammar_line(f, 'subject', subjects)
@@ -256,12 +264,12 @@ def _generate_grammar(phrase_len:list) -> None:
     f.close()
 
 
-def _generate_mlf_file() -> None:
+def _generate_mlf_file(isFingerspelling: bool) -> None:
     """Creates all_labels.mlf file that contains every phrase in the 
     dataset.
     """
 
-    htk_filepaths = os.path.join('data', 'htk', '*.htk')
+    htk_filepaths = os.path.join('data', 'htk', '**/*.htk')
     filenames = glob.glob(htk_filepaths)
 
     with open('all_labels.mlf', 'w') as f:
@@ -271,14 +279,20 @@ def _generate_mlf_file() -> None:
         for filename in filenames:
 
             label = filename.split('/')[-1].replace('htk', 'lab')
-            phrase = label.split('.')[1].split('_')
+            # phrase = label.rsplit('.', 4)[1].split('_') #TODO: again, this is replaced for specific dataset, needs to be standardized
+
+            phrase = [filename.split('/')[-2]]
 
             f.write('"*/{}"\n'.format(label))
             f.write('sil0\n')
 
             for word in phrase:
-
-                f.write('{}\n'.format(word.lower()))
+                if isFingerspelling:
+                    f.write('{}\n'.format('\n'.join(word)))
+                    # f.write('{}\n'.format('\n'.join(word.lower())))
+                else:
+                    f.write('{}\n'.format(word))
+                    # f.write('{}\n'.format(word.lower()))
 
             f.write('sil1\n')
             f.write('.\n')

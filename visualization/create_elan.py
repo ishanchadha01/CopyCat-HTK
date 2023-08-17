@@ -9,9 +9,9 @@ from collections import OrderedDict
 from sys import platform
 import pandas as pd
 
-from ffprobe import FFProbe
 import numpy as np
 from scipy.stats import norm 
+
 
 
 def is_file_name(name: str) -> bool:

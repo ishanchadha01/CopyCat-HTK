@@ -9,7 +9,7 @@ import glob
 import shutil
 from string import Template
 
-def test(start: int, end: int, method: str, insertion_penalty: int, beam_threshold: int = 2000, fold: str = "") -> None:
+def test(start: int, end: int, method: str, insertion_penalty: int, beam_threshold: int = 2000, fold: str = "", is_triletter: bool = False) -> None:
     """Tests the HMM using HTK. Calls HVite and HResults. Can perform
     either recognition or verification. 
 
@@ -36,24 +36,37 @@ def test(start: int, end: int, method: str, insertion_penalty: int, beam_thresho
     if start < 0:
         start = end + start
 
-    if method == 'recognition' or method == 'adaptive_htk':
+    print("METHOD:: ", method)
+
+    if method == 'recognition':
+        print("1111")
 
         # HVite_str = (f'HVite -A -H $macros -f -m -S lists/test.data -i $results '
         #              f'-p -10.0 -w wordNet.txt -s 25 dict wordList')
-        # HVite_str = (f'HVite -A -f -H $macros -m -S lists/{fold}test.data -i '
-        #              f'$results -p {insertion_penalty} -w wordNet.txt -s 25 dict wordList')
-        HVite_str = (f'HVite -a -o N -T 1 -H $macros -m -f -S '
-                     f'lists/{fold}train.data -i $results '
-                     f'-p {insertion_penalty} -I all_labels.mlf -w wordNet.txt -s 25 dict wordList')
+        if is_triletter:
+            HVite_str = (f'HVite -A -H $macros -m -S lists/{fold}test.data -i '
+                     f'$results -p {insertion_penalty} -w wordNet.txt -s 25 dict_tri wordList_triletter')
+        else:
+            HVite_str = (f'HVite -A -H $macros -m -S lists/{fold}test.data -i '
+                     f'$results -p {insertion_penalty} -w wordNet.txt -s 25 dict wordList')
 
         HVite_cmd = Template(HVite_str)
 
-        HResults_str = (f'HResults -A -h -e \\?\\?\\? sil0 -e \\?\\?\\? '
-                        f'sil1 -p -t -I all_labels.mlf wordList $results '
+        if is_triletter:
+            HResults_str = (f'HResults -A -h -e \\?\\?\\? sil0 -e \\?\\?\\? '
+                        f'sil1 -p -t -I all_labels_triletter.mlf wordList_triletter $results '
+                        f'>> $hresults')
+        else:
+            # HResults_str = (f'HResults -A -h -e \\?\\?\\? sil0 -e \\?\\?\\? '
+            #             f'sil1 -p -t -I all_labels.mlf wordList $results '
+            #             f'>> $hresults')
+            HResults_str = (f'HResults -A -h -e \\?\\?\\? sil0 -e \\?\\?\\? '
+                        f'sil1 -t -I all_labels.mlf wordList $results '
                         f'>> $hresults')
         HResults_cmd = Template(HResults_str)
 
     elif method == 'alignment':
+        print("22222")
 
         HVite_str = (f'HVite -a -o N -T 1 -H $macros -m -f -S '
                      f'lists/{fold}train.data -i $results -t {beam_threshold} '
@@ -67,8 +80,6 @@ def test(start: int, end: int, method: str, insertion_penalty: int, beam_thresho
         macros_filepath = f'models/{fold}hmm{i}/newMacros'
         results_filepath = f'results/{fold}res_hmm{i}.mlf'
         hresults_filepath = f'hresults/{fold}res_hmm{i}.txt'
-
-        print("Generating results files")
 
         os.system(HVite_cmd.substitute(macros=macros_filepath,
                                        results=results_filepath))

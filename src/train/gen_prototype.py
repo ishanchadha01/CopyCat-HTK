@@ -1,5 +1,5 @@
 """Generates prototype files used to initalize models. Should be used
-with configs/prototypes.json. Different words can be initialized with
+with the prototypes JSON in configs. Different words can be initialized with
 different prototypes.
 
 Methods
@@ -7,11 +7,13 @@ Methods
 generate_prototype
 """
 import sys
-
+import random
+from .gen_hmm_utils import *
 
 def generate_prototype(n_states: int, n_features: int, output_filepath: str, 
                        mean: float = 0.0, variance: float = 1.0, 
-                       transition_prob: float = 0.6) -> None:
+                       transition_prob: float = 0.6, hmm_step_type: str = 'single',
+                       gmm_mix: int = None) -> None:
     """Generates prototype files used to initalize models.
 
     Parameters
@@ -43,32 +45,27 @@ def generate_prototype(n_states: int, n_features: int, output_filepath: str,
         f.write('<BeginHMM>\n')
         f.write('<NumStates> {}\n'.format(n_states))
 
-        for i in range(2, n_states):
-
-            f.write('<State> {}\n'.format(i))
-            f.write('<Mean> {}\n'.format(n_features))
-            f.write(' '.join([str(mean)]*n_features) + '\n')
-            f.write('<Variance> {}\n'.format(n_features))
-            f.write(' '.join([str(variance)]*n_features) + '\n')
+        start = 2
+        for i in range(start, n_states):
+            if gmm_mix is not None:
+                generate_gmm_state_space(f, n_states, n_features, gmm_mix, variance, i)
+            else:
+                generate_state_space(f, n_states, n_features, mean, variance, i)
 
         f.write('<TransP> {}\n'.format(n_states))
         row = ['0.0'] + ['1.0'] + ['0.0']*(n_states - 2)
         f.write(' '.join(row) + '\n')
-
-        for i in range(1, n_states-2):
-            # if i == 6:
-            #     row = ['0.0']*i + [str(0.9*transition_prob), str(0.9-0.9*transition_prob)] + ['0.0']*3 + ['0.1'] + ['0.0']*(n_states - i - 6)
-            #     f.write(' '.join(row) + '\n')
-            # else:
-            row = ['0.0']*i + [str(transition_prob), str(1-transition_prob)] + ['0.0']*(n_states - i - 2)
-            f.write(' '.join(row) + '\n')
-            # row = ['0.0']*i + [str(0.8*transition_prob), str((1-transition_prob)*0.8)] + [str(0.2/(n_states - i - 2.0))]*(n_states - i - 2)
-            # f.write(' '.join(row) + '\n')
-            # row = ['0.0']*i + [str(transition_prob), str(1-transition_prob)] + ['0.0']*(n_states - i - 2)
-            # f.write(' '.join(row) + '\n')
-
-        row = ['0.0']*(n_states - 2) + [str(transition_prob), str(1-transition_prob)]
-        f.write(' '.join(row) + '\n')
+        
+        if hmm_step_type == 'single':
+            generate_single_step_hmm(f, n_states)
+        elif hmm_step_type == 'double':
+            generate_double_step_hmm(f, n_states)
+        elif hmm_step_type == 'triple':
+            generate_triple_step_hmm(f, n_states)
+        elif hmm_step_type == 'start_stack':
+            generate_start_stack_hmm(f, n_states)
+        elif hmm_step_type == 'end_stack':
+            generate_end_stack_hmm(f, n_states)
 
         f.write(' '.join(['0.0']*n_states) + '\n')
         f.write('<EndHMM>\n')

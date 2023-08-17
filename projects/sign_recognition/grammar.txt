@@ -1,0 +1,3 @@
+$word = after | face | orange;
+
+(SENT-START $word SENT-END)

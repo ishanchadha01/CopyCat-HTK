@@ -1,7 +1,10 @@
+# import mediapipe as mp
 from create_elan import *
 from plot_mediapipe import draw_mediapipe_landmarks
 import tkinter as tk
+import cv2
 
+import ffprobe
 import os
 import platform 
 import subprocess
@@ -199,6 +202,7 @@ class ElanGui:
     t.start()
 
     # self.process_video(eaf_obj)
+    self.save_bad_frames_and_info(video_fp)
     self.video_fp_list_idx += 1
 
 
@@ -255,6 +259,19 @@ class ElanGui:
       elan_proc = subprocess.Popen([self.elan_exec, eaf_path])
     elif platform.system == "Windows":
       elan_proc = subprocess.Popen([self.elan_exec, eaf_path])
+
+  def save_bad_frames_and_video(self, video_fp):
+    # Save bad frames to directory under dir with video name
+    # As well as JSON with metric info
+
+    # Get frame index from Cv2 Capture object
+    cap = cv2.VideoCapture(video_fp)
+    for idx, frame in enumerate(self.bad_frames):
+      if frame:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        status, frame = cap.read()
+        # save frame, save bad features of that frame
+        
 
 
 

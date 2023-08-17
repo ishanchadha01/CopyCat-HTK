@@ -3,98 +3,7 @@ from get_confusion_matrix import get_confusion_matrix
 from get_hresults_data import get_hresults_data
 
 
-def findOccurrences(s, ch):
-    return [i for i, letter in enumerate(s) if letter == ch]
-
-
-def compare_true_pred(labelTRUEwords, labelTRUE, labelPREDwords, labelPRED):
-
-    # print(labelTRUE)
-    # print(labelPRED)
-
-    trueSpaces = findOccurrences(labelTRUE, ' ')
-    predSpaces = findOccurrences(labelPRED, ' ')
-    spaces = sorted( list( set(trueSpaces) & set(predSpaces) ) + [-1])
-    # print(trueSpaces, predSpaces, spaces)
-
-    true_data = []
-    true_idx = 0
-
-    pred_data = []
-    pred_idx = 0
-
-    # print(spaces)
-
-    for space in spaces:
-        # print(f"start of next word is {space + 1}")
-        first_letter = space + 1
-
-        # print(labelTRUE[first_letter], labelPRED[first_letter])
-
-        if labelTRUE[first_letter] != ' ': # true has a word
-            true_data.append(labelTRUEwords[true_idx])
-            true_idx += 1
-        else:
-            true_data.append(' ')
-
-        if labelPRED[first_letter] != ' ':
-            pred_data.append(labelPREDwords[pred_idx])
-            pred_idx += 1
-        else:
-            pred_data.append(' ')
-
-    return true_data, pred_data
-
-
-def get_hresults_data(results_file):
-    results_dict = {} # { '<FILENAME>': { 'true': [word1, word2, ...], 'pred': [word1, word2, ...] } }
-    
-    labels = {}
-
-    start_index = -1
-
-    with open(results_file, 'r') as lf:
-        
-        objectFILENAME = ""
-
-        labelTRUEwords = []
-        labelTRUE = ""
-
-        labelPREDwords = []
-        labelPRED = ""
-
-        for cnt, line in enumerate(lf):
-            l = line.rstrip()
-            if cnt == 0: continue
-            if "--------------" in l: break
-
-            if cnt % 3 == 1:
-                file = l.split()[2]
-                objectFILENAME = os.path.basename(file)
-            elif cnt % 3 == 2:
-                words = l.split()[1:]
-                labelTRUEwords = words
-                labelTRUE = l.split(": ")[1]
-            else:
-                words = l.split()[1:]
-                labelPREDwords = words
-                labelPRED = l.split(": ")[1]
-                # print(objectFILENAME)
-
-                true_data, pred_data = compare_true_pred(labelTRUEwords, labelTRUE, labelPREDwords, labelPRED)
-
-                results_dict[objectFILENAME] = {}
-                results_dict[objectFILENAME]['true'] = true_data
-                results_dict[objectFILENAME]['pred'] = pred_data
-
-    #             print(true_data, pred_data)
-    #             print()
-
-    # print(results_dict)
-
-    return results_dict
-
-output_file = open("./hresults_improved_alphapose.txt", "w")
+output_file = open("hresults_improved.txt", "w")
 orig_avg_SE = 0
 orig_avg_WE = 0
 new_avg_SE = 0
@@ -224,13 +133,13 @@ def compareTwoModels(file1, file2):
     print("num_in_above_that_were_fixed: ", num_in_above_that_were_fixed, file=output_file)
     total_num_in_above_that_were_fixed += num_in_above_that_were_fixed
 
-base = '/mnt/884b8515-1b2b-45fa-94b2-ec73e4a2e557/SBHMM-HTK/SequentialClassification/main/projects/'
+base = '/home/aslr/SBHMM-HTK/SequentialClassification/main/projects/'
 
-num_files = 5
+num_files = 12
 
 for i in range(num_files):
-	file1 = os.path.join(base, f'AlphaPose/hresults/{i}/res_hmm120.txt')
-	file2 = os.path.join(base, f'AlphaPose_inabove_features/hresults/{i}/res_hmm120.txt')
+	file1 = os.path.join(base, f'Kinect/hresults/{i}/res_hmm220.txt')
+	file2 = os.path.join(base, f'Kinect_inabove_features/hresults/{i}/res_hmm220.txt')
 	compareTwoModels(file1, file2)
 	print('\n********************************\n', file=output_file)
 

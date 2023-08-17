@@ -328,13 +328,13 @@ def plot_macros_gaussian(feature_config_filepath, feature_config_key, macros_fil
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--feature_config_filepath', type = str, default = '/mnt/884b8515-1b2b-45fa-94b2-ec73e4a2e557/SBHMM-HTK/SequentialClassification/main/projects/Kinect/configs/features.json')
+    parser.add_argument('--feature_config_filepath', type = str, default = '/home/aslr/SBHMM-HTK/SequentialClassification/main/projects/Kinect/configs/features.json')
     parser.add_argument('--feature_config_key', type = str, default = 'selected_features')
-    parser.add_argument('--macros_filepath', type = str, default = '/mnt/884b8515-1b2b-45fa-94b2-ec73e4a2e557/SBHMM-HTK/SequentialClassification/main/projects/Kinect/models/3/hmm20/newMacros')
-    parser.add_argument('--save_dir', type = str, default = '/mnt/884b8515-1b2b-45fa-94b2-ec73e4a2e557/SBHMM-HTK/SequentialClassification/main/projects/Kinect/')
+    parser.add_argument('--macros_filepath', type = str, default = '/home/aslr/SBHMM-HTK/SequentialClassification/main/projects/Kinect/models/3/hmm220/newMacros')
+    parser.add_argument('--save_dir', type = str, default = '/home/aslr/SBHMM-HTK/SequentialClassification/main/projects/Kinect/')
     parser.add_argument('--words', nargs='*', type = str, default = [])
     parser.add_argument('--feature_labels', nargs='*', type = str, default = [])#['dist_between_handtips_squared_x', 'dist_between_handtips_squared_y', 'dist_between_handtips_squared_z'])
-    parser.add_argument('--confusion_matrix_filepath', type = str, default = '/mnt/884b8515-1b2b-45fa-94b2-ec73e4a2e557/SBHMM-HTK/SequentialClassification/main/projects/Kinect/hresults/3/res_hmm20.txt')
+    parser.add_argument('--confusion_matrix_filepath', type = str, default = '/home/aslr/SBHMM-HTK/SequentialClassification/main/projects/Kinect/hresults/3/res_hmm220.txt')
     parser.add_argument('--threshold', type = float, default = 0.0)
     parser.add_argument('--mode', type = int, default = 1)
     args = parser.parse_args()

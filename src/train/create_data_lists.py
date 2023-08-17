@@ -45,5 +45,6 @@ def create_data_lists(train_data: list, test_data: list, phrase_len: int = 0, fo
 				train_data_list.write('{}\n'.format(phrase))
 
 			for phrase in test_data:
-				all_data_list.write('{}\n'.format(phrase))
+				if train_data != test_data:
+					all_data_list.write('{}\n'.format(phrase))
 				test_data_list.write('{}\n'.format(phrase))

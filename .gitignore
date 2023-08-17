@@ -1,8 +1,8 @@
-Mediapipe/data/*
-Mediapipe/hresults/*
-Mediapipe/lists/*
-Mediapipe/models/*
-Mediapipe/results/*
-Mediapipe/lists/*
+projects/**/data/*
+projects/**/hresults/*
+projects/**/lists/*
+projects/**/models/*
+projects/**/results/*
+projects/**/logs/*
 __pycache__/
 *.pyc
